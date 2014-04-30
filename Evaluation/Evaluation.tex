@@ -1,0 +1,15 @@
+\chapter{Evaluation}
+
+\section{Microbenchmarks}
+
+\subsection{Fat Pointers}
+
+Fat pointers add a storage overhead in the pointer itself, tripling its size to that of three pointers. Fat pointers generate computational overhead on creation, where the base and bound must be set as well as the value and on dereference, where an extra load instruction must be added. Finally fat pointers create computational overhead on bounds checking.
+
+\subsection{Fat Pointers with CCured Analysis}
+
+\subsubsection{Safe pointers as Raw or Fat Pointers}
+
+When combining the CCured approach with the fat pointer analysis, there is a choice of how to implement pointers designated as SAFE - these are pointers that do not require bounds checks on dereference. These SAFE pointers can either be implemented as a fat pointer but without bounds checking or kept as a raw pointer.
+
+Implementing SAFE pointers as fat pointers but without the bounds checking brings consistency but keeps the overhead of fat pointers, which isn't used when SAFE pointers are kept as raw pointers.
