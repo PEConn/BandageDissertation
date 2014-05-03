@@ -1,5 +1,8 @@
 \chapter{Implementation}
 
+During this chapter, types will be referred to in LLVM notation.
+An \verb!i32! stands for a 32-bit integer, a \verb!i8! stands for an 8 bit integer (or char) and a pointer to a type is denoted by the type followed by an asterisk.
+
 \section{Working with pointers in LLVM IR}
 
 In LLVM IR, variables are created with an \verb!alloca! instruction, which returns a pointer to the allocated variable (which is allocated on the stack).
@@ -101,15 +104,159 @@ x += 3;
 
 In bandage, the variable x, of type \verb!i32*! would be turned into a structure of type \verb!{i32*, i32*, i32*}!.
 Assuming that malloc returned the address \verb!0x1000!, the variable x would contain \verb!{0x1000, 0x1000, 0x1020}! because it contains a pointer that currently points to \verb!0x1000! and whose valid addresses start at \verb!0x1000! inclusive and end at \verb!0x1020! not inclusive.
-After the \verb!x += 3! instruction, the variable x would contain \verb!{0x1008, 0x1000, 0x1020}!.
+After the \verb!x += 3! instruction, the variable x would contain \verb!{0x1012, 0x1000, 0x1020}!.
 
+In order to keep type safety in the LLVM IR, different types of pointers create different types of fat pointers, eg a \verb!i32*! creates an \verb!{i32*, i32*, i32*}! whereas a \verb!i8*! creates a \verb!{i8*, i8*, i8*}!.
+This will result in a fat pointer class for every pointer type in the program, but because class information does not propagate to the final binary, this shouldn't create any space overhead.
 
-Different pointer types give different fat pointer types.
+However, this adds some complexity when pointers are cast to different types.
+Previously, casting from a pointer to a pointer (for example casting from the \verb!i8*! returned from \verb!malloc! to the \verb!i32*! for the integer pointer in the above example would take one bitcast instruction with raw pointers.
+With fat pointers, a new fat pointer would need to be created, the address of each field would need to be calculated, each field would have to be loaded, bitcast and then stored in the new fat pointer, adding a fair amount of overhead.
+The current implementation is optimized for this case (detecting whether the result of a \verb!malloc! is going to be bitcast, and if so doesn't create the intermediate fat pointer).
+\textbf{It may be worthwhile seeing how well this optimization does}.
+
+\subsection{Types of Fat Pointer}
+
+During the running of the program, each fat pointer can be classified as one of three types: \textit{HasBounds}, \textit{NoBounds} and \textit{Null}.
+
+The \textit{Null} fat pointers have their value set to \verb!NULL!, and no restrictions on their base or bound.
+They represent null pointers and throw an error whenever they are dereferenced.
+
+The \textit{NoBounds} fat pointers have their base set to \verb!NULL! and not-\verb!NULL! in their value.
+They represent fat pointers whose bounds we do not know, for example the result of a external function call.
+These pointers cannot be bounds checked on dereference, so do not throw an error.
+
+Finally, textit{HasBounds} pointers have not-\verb!NULL! in all of their fields and represent a pointer whose bounds we know.
+These pointers are bounds checked on dereference and throw an error if the value is out of bounds.
 
 \subsection{Pointers}
-\subsection{Structs}
-\subsubsection{Sizeof Woes}
+
+\subsubsection{Allocation}
+
+The first step in the pointer transformation is to find all \verb!alloca! instructions that create a pointer, and replace them with a fat pointer.
+Even at this early stage we can add some safety to the program by initialising the fat pointer value to be null.
+
+In terms of performance, we are swapping one allocation instruction allocating a pointer's worth of memory with another, allocating three pointers worth of memory. 
+On testing this was found to produce no performance difference.
+
+When the value was set to \verb!NULL!, an overhead of 1.7% was added.
+
+\subsubsection{Instruction-based vs Chain-based}
+
+The original implementation of bandage moved through the program and transformed it on an instruction-by-instruction basis, gathering all information from the transformation from the instruction being transformed (eg the opcode, its arguments, the types of the arguments and the instruction type).
+
+It was found that this approach, though originally simple, rapidly gained complexity as more sophisticated transformations were needed.
+Upon integration with the CCured pointer analysis, the implementation was switched to a different, more holistic approach, that of instruction-chains.
+
+An instruction chain is a sequence of instructions, where every instruction is used by the subsequent instruction.
+Under this implementation, the source is searched for allocation instructions and call instructions - the two instructions that start instruction chains, and their usage was followed.
+
+These instruction chains tend to terminate in one of a few common instructions:
+
+\begin{itemize}
+\item \textbf{Store} - A store instruction usually terminates two instruction chains, that of the pointer and that of the value.
+\item \textbf{Call} - A call instruction terminates the instruction chains of all of the parameters that are used in it. Additionally it creates a new instruction chain of its return value (if that return value is used).
+\item \textbf{Return} - Terminates the instruction chain of the return value.
+\item \textbf{Compare} - Similar to a store instruction, this terminates the two instruction chains of its operands.
+\end{itemize}
+
+The following diagram shows the two use chains generated by the following code:
+
+\begin{verbatim}
+int *a;
+int *b;
+*a = *b;
+\end{verbatim}
+\tikzstyle{block} = [rectangle, draw, fill=blue!40, 
+    text width=5em, text centered, rounded corners, minimum height=2em]
+\tikzstyle{line} = [draw, -latex']
+\begin{tikzpicture}[node distance = 1.5cm, auto]
+	\node [block] (a) {a = alloca};
+	\node [block, below of=a] (load_a1) {load};
+	\node [block, below of=load_a1, fill=yellow!60] (store) {store};
+	\node [block, left of=a, node distance=3cm] (b) {b = alloca};
+	\node [block, below of=b] (load_b1) {load};
+	\node [block, below of=load_b1] (load_b2) {load};
+	\path [line] (a) -- (load_a1);
+	\path [line] (load_a1) -- (store);
+	\path [line] (b) -- (load_b1);
+	\path [line] (load_b1) -- (load_b2);
+	\path [line] (load_b2) -- (store);
+\end{tikzpicture}
+
+\subsubsection{Loads}
+
+Loads are where most of the work occurs with fat pointers.
+
+First it must be determined whether the load needs be transformed to return the value contained within the fat pointer, or whether the load needs to return the fat pointer.
+The latter case may arise when the load is to be used as the value in a store (where we store the fat pointer in anther fat pointer) or when the load is loading the parameter for a function call.
+Checking for these cases is an example where the chain-based view of the data allows simpler checks than the instruction-based view.
+
+If it is determined that the value of the fat pointer must be loaded instead of the fat pointer itself, bounds checking can occur.
+The value, base and bounds values are loaded out of the fat pointer and have arithmetic performed on them.
+If the value is less than the base, or greater than or equal to the base, a user defined function is called.
+
+The transformation for the code derefencing the variable \verb!a! is shown below, with the raw pointer code being:
+
+\begin{verbatim}
+%1 = load i32** %a
+\end{verbatim}
+
+Which will be transformed into:
+
+\begin{verbatim}
+%value_addr = getelementptr %FatPointer* %FP.a, i32 0, i32 0
+%value = load i32** %base_addr
+%base_addr = getelementptr %FatPointer* %FP.a, i32 0, i32 1
+%base = load i32** %base_addr
+%bound_addr = getelementptr %FatPointer* %FP.a, i32 0, i32 2
+%bound = load i32** %base_addr
+call void @BoundsCheck(i32* value, i32* base, i32* bound)
+%1 = load %value
+\end{verbatim}
+
+The \verb!getelementptr! instructions get the addresses of the fields of the fat pointer.
+Though the Bandage implementation creates three new \verb!getelementptr! instructions on every dereference, these offsets are constant, and so repeated calls should be removed further down the compilation pipeline.
+
+The cost of fat pointer dereference comes from the additional loads, and the bounds checking.
+
+If bounds checking were ignored, overhead would be introduced because on dereference there are now two loads instead of just one - there is one to get the pointer out of the fat pointer, and one to dereference the pointer.
+\textbf{This would be a nice place for a microbenchmark on the raspberry pi}
+
+\subsubsection{Geps}
+
 \subsection{Functions}
+
+Functions that are declared in the provided source files are converted into ones compatible with fat pointers.
+
+Functions are duplicated into a function with a modified signature, such that every parameter is replaced by the fat pointer version of that parameter (so a pointer is replaced by a fat pointer, a struct is replaced by a version of the struct that uses fat pointers).
+
+A map from original functions to fat pointer capable functions is kept, and when a call instruction is encountered, the call target is updated to the fat pointer version of the function if it exists.
+
+If no such fat pointer version exists, there may need to be some conversion code around the call.
+This code will strip any fat pointers that are passed as parameters into raw pointers and, if the function returns a raw pointer, will wrap this into a fat pointer.
+This, newly created fat pointer will have its base set to \verb!NULL!, making it a \textit{NoBounds} pointer described above.
+
+\subsubsection{malloc}
+
+When a \verb!malloc! instruction is encountered, the fat pointer being assigned to has its value and base set to the return value, and its bound set to the base plus the argument to the malloc instruction (the size of the area of memory to be allocated).
+
+\subsubsection{free}
+When a \verb!free! instruction is encountered, the argument is followed backwards to find the fat pointer it came from.
+The value of the fat pointer is set to \verb!NULL!.
+\subsubsection{Evaluate String Function}
+
+\subsection{Structs}
+
+Structures need to be modified to hold fat pointers instead of pointers, eg:
+
+\begin{verbatim}
+
+\end{verbatim}
+	
+\subsubsection{Sizeof Woes}
+
+\section{The Bounds Check Function}
 
 \section{Lookup Table}
 
