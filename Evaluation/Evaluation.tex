@@ -1,15 +1,88 @@
 \chapter{Evaluation}
 
-\section{Microbenchmarks}
+\section{Performance}
+\subsection{Microbenchmarks}
 
+A selection of tailored micro-benchmarks were created to investigate the effects of the transformation on individual parts of code.
+
+\subsubsection{Safe Pointer Dereference}
+
+\begin{verbatim}
+// Setup
+int x;
+int y=malloc(sizeof(int));
+// Benchmarked Code
+x=*y;
+\end{verbatim}
+
+As \verb!y! is recognised as a safe pointer, no bounds checking will be carried out, however at the moment the variable is not marked as \verb!not-NULL!, therefore a null check is performed.
+This null check incurs an overhead of \verb!4.6%!.
+
+If there null check were omitted, the only overhead of the fat pointer approach would be the load required to retrieve the fat pointer value.
+This benchmark was run without the null check, and the load was found to incur an overhead of \verb!0.9%!.
+
+\subsubsection{Unsafe Pointer Dereference}
+
+\begin{verbatim}
+// Setup
+int x;
+int y=malloc(sizeof(int));
+x=y[0];
+// Benchmark Code
+x=*y;
+\end{verbatim}
+
+By using array addressing on the pointer, the CCured analysis detects \verb!y! as a pointer that has arithmetic done on it, and is therefore not \textit{SAFE}.
+Therefore the pointer dereference will contain the full bounds check, which was found to incur an overhead of \verb!52%!.
+
+The bounds check function used was complex, first it checked if the value was null, then if the base was null (signifying a pointer of type \verb!NoBounds!), and finally if the value were within the base and bound.
+This could be simplified.
+
+\subsubsection{Pointer Allocation}
+
+\begin{verbatim}
+// Setup
+void Fun1(){}
+void Fun2(){int *a,*b,...,*j;}
+\end{verbatim}
+
+Many calls were made to \verb!Fun1! and to \verb!Fun2! and the difference in execution time was measured.
+This benchmark needed to be done this way because memory used by an allocation is not free until the scope it is allocated in is left, therefore if the allocation were performed in a loop, the stack would run out of space.
+
+This was found to produce no measurable difference.
+
+\subsubsection{Pointer Assignment}
+
+\begin{verbatim}
+// Setup
+int *a,*b;
+// Benchmark Code
+a=b;
+\end{verbatim}
+
+There is no bounds checking on this code as no pointers are dereferenced, its purpose is to observe the overhead of copying three pointers instead of one.
+
+This was found to produce no measurable difference.
+
+\subsubsection{Cache Contention}
+
+Since fat pointers are three times as large as raw pointers, they cause increased cache usage.
+For this benchmark, bounds checks were disabled.
+
+\textbf{Unfortunately, on zenith this wasn't found to produce any performance difference.}
+
+\section{Misc}
 \subsection{Fat Pointers}
 
-Fat pointers add a storage overhead in the pointer itself, tripling its size to that of three pointers. Fat pointers generate computational overhead on creation, where the base and bound must be set as well as the value and on dereference, where an extra load instruction must be added. Finally fat pointers create computational overhead on bounds checking.
+Fat pointers add a storage overhead in the pointer itself, tripling its size to that of three pointers.
+Fat pointers generate computational overhead on creation, where the base and bound must be set as well as the value and on dereference, where an extra load instruction must be added.
+Finally fat pointers create computational overhead on bounds checking.
 
 \subsection{Fat Pointers with CCured Analysis}
 
 \subsubsection{Safe pointers as Raw or Fat Pointers}
 
-When combining the CCured approach with the fat pointer analysis, there is a choice of how to implement pointers designated as SAFE - these are pointers that do not require bounds checks on dereference. These SAFE pointers can either be implemented as a fat pointer but without bounds checking or kept as a raw pointer.
+When combining the CCured approach with the fat pointer analysis, there is a choice of how to implement pointers designated as SAFE - these are pointers that do not require bounds checks on dereference.
+These SAFE pointers can either be implemented as a fat pointer but without bounds checking or kept as a raw pointer.
 
 Implementing SAFE pointers as fat pointers but without the bounds checking brings consistency but keeps the overhead of fat pointers, which isn't used when SAFE pointers are kept as raw pointers.
