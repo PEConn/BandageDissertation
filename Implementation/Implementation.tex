@@ -329,8 +329,30 @@ The third and final dereference follows the same pattern, loading the value at \
 \subsubsection{Table lookup}
 
 This table lookup is performed whenever a pointer stored on the heap is dereferenced, and this is what introduces the major disadvantage of the lookup table approach.
+Such a hash table must map from the address of the pointer to the base and bounds of that pointer.
 
+Two different implementations of lookup table were implemented to compare the trade-off between size and lookup cost.
 
+\subsubsection{Hash Table}
+
+The lookup table was implemented using \verb!uthash!, a hash table implementation written in C and released under the BSD revised license. 
+
+A hash table uses a hashing function to split its contents into a series of buckets, each of which contains a list of elements.
+On access, the index is hashed to find the correct bucket and the contents of the bucket are scanned linearly to find the correct item.
+In order for this scan to run in constant time, the number of items in the bucket must be bounded.
+
+In \verb!uthash!, the limit of items in each bucket is set to \verb!10!, and once this is exceeded, the number of buckets is doubled and items are redistributed into new buckets.
+This means that lookup time has a constant bound (though it still a linear lookup, which would take longer than an array access), though adding items to the hash table can either be constant time, or can cause the buckets to be resized, an operation linear in the size of the hash table.
+
+The advantage of a hash table is that it is quite small, with its size depending on the number of entries it contains.
+
+\subsubsection{Memtable}
+
+In contrast to the hash table is \verb!memtable!, which maps from areas of memory.
+It essentially creates a linear array of entries, with each entry covering a range of addresses.
+Since we are mapping from pointers, each area of memory mapped from is 8 bytes.
+
+In this case, the size of the hash table is large, as it consumes space for every field that it could contain, however value lookup consists of pointer arithmetic and an array access so is constant time, as is value insertion.
 \subsection{Functions}
 
 Since pointers are copied in function calls, the address of the pointer cannot be used to carry information about the pointer's base and bound across the function boundary.
