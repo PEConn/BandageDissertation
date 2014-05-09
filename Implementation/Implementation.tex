@@ -258,7 +258,129 @@ Structures need to be modified to hold fat pointers instead of pointers, eg:
 
 \section{The Bounds Check Function}
 
-\section{Lookup Table}
+\section{Lookup Table - Softbound}
+
+For comparison between a fat pointer and meta-data approaches, the SoftBound system was implemented.
+SoftBound was chosen because, apart from differences in where the bounds information is stored, it is very similar to the fat pointer approach as it associates each pointer with a base and bound.
+
+\subsection{Pointers on the Stack}
+
+The SoftBound approach for local pointers with only one layer of indirection is very simple, two additional pointers are created alongside the original one to hold the base and the bound.
+
+\begin{verbatim}
+// Before
+int *ptr;
+// After
+int *ptr;
+int *ptr_base;
+int *ptr_bound;
+\end{verbatim}
+
+This is essentially the same as the fat pointer approach, except the data is stored as multiple variables instead of all in one structure.
+However, whereas replacing all uses of the pointer with a fat pointer then requires modifications in its further uses, this approach breaks nothing further down the line.
+
+This is implemented by iterating through all instructions in the program and acting on \verb!alloca!s of pointer types.
+On finding such an \verb!alloca!, two new pointers of the same type are created, and references of them are stored in a map, indexed by the reference of the original, such that further uses of the original pointer can be used to find its associated variables.
+
+\subsection{Pointers on the Heap}
+
+With the fat pointer approach, when a pointer is allocated on the heap its base and bounds are allocated alongside it, in the fat pointer structure.
+SoftBound uses a table data structure to map the address of a pointer in memory to the base and bound for that pointer.
+
+The base and bound are retrieved from the lookup table, indexed by the address of the pointer on every load.
+For example, consider the case shown below, where each box contains the name of a variable, if it is local or its address if it is not, and its value below it. 
+
+\noindent
+\tikzstyle{pointer} = [rectangle, draw, 
+    text width=5em, text centered, rounded corners, minimum height=3em]
+\tikzstyle{line} = [draw, -latex']
+\begin{tikzpicture}[node distance = 3cm, auto]
+	\node [pointer] (a) {a \\ 0x1000};
+	\node [pointer, right of=a] (b) {0x1000 \\ 0x5000};
+	\node [pointer, right of=b] (c) {0x5000 \\ 0x3000};
+	\node [pointer, right of=c] (d) {0x3000 \\ 42};
+	\path [line] (a) -- (b);
+	\path [line] (b) -- (c);
+	\path [line] (c) -- (d);
+\end{tikzpicture}
+
+The local variable \verb!a! points to the address \verb!0x1000!, which points to the address \verb!0x5000! which points to the address \verb!0x3000! which contains \verb!42!. This would be accompanied by the following lookup table:
+
+\noindent
+\begin{tabular}{|r|r|r|}
+\hline Address & Base & Bound \\
+\hline 0x1000 & 0x5000 & 0x5008 \\
+\hline 0x5000 & 0x3000 & 0x3004 \\
+\hline
+\end{tabular}
+
+Consider the following code:
+
+\begin{verbatim}
+***a=12;
+\end{verbatim}
+
+The first dereference is simple and requires no lookup as \verb!a! is a local variable and therefore has other local variables associated with it containing its base and bound.
+The second dereference, loading the value from the pointer stored at \verb!0x1000!, is accompanied by a table lookup using the address of the pointer.
+This lookup finds the base and bounds and performs the bounds check.
+
+The third and final dereference follows the same pattern, loading the value at \verb!0x3000! from the pointer which it itself stored at \verb!0x5000!, using the address of the pointer (\verb!0x5000!) as a key to the lookup table and getting the correct bounds.
+
+\subsubsection{Table lookup}
+
+This table lookup is performed whenever a pointer stored on the heap is dereferenced, and this is what introduces the major disadvantage of the lookup table approach.
+
+
+\subsection{Functions}
+
+Since pointers are copied in function calls, the address of the pointer cannot be used to carry information about the pointer's base and bound across the function boundary.
+Therefore, locally defined functions are modified so that their base and bound are passed in explicitly as additional parameters.
+
+As with the fat pointer approach, this required duplicating all provided functions to those with modified signatures.
+Special care must be taken because there is no longer a one-to-one mapping between the parameters in the original function and those in the modified function.
+
+\begin{verbatim}
+// Before
+int Func(int *x);
+// After
+int Func(int *x, int *x_base, int *x_bound);
+\end{verbatim}
+
+Additionally, the base and bounds of the return value must be transferred across the function call boundary.
+This involves creating a structure that contains the pointer value, base and bound and returning this instead.
+
+There are two key differences between this returned structure and a fat pointer.
+The first is in the purpose, a fat pointer will be returned from a function and then used as a fat pointer.
+The return structure will be returned from the function and immediately have its information stripped from it into local variables, it is purely a vehicle for returning multiple values.
+
+The second is in how these structures deal with nested pointers.
+A multi-level pointer, when transformed into a fat pointer, has each layer of indirection turned into a structure, eg:
+
+\begin{verbatim}
+// Before
+int **a;
+// After
+struct FatPointer.1{int *value, *base, *bound;};
+struct FatPointer.2{struct FatPointer.2 *value, *base, *bound;};
+struct FatPointer.2 a;
+\end{verbatim}
+
+This is because a multi-level fat pointer must contain all of the bounds information with it.
+On the other hand, with SoftBound we only care about the pointer we are passing, so:
+
+\begin{verbatim}
+// Before
+int **a;
+// After
+struct ReturnPointer{int **value, **base, **bound};
+struct ReturnPointer a;
+\end{verbatim}
+
+We only need the bounds of the immediate pointer since the bounds of anything that it points to will be stored in the lookup table.
+
+In terms of implementation, the duplicated functions returned the 'pointer return' object and code was added at each call site to extract the value, base and bound and to associate the value with the base and bound.
+
+\subsection{Setting pointer bounds}
 
 \section{CCured Analysis}
 
