@@ -227,8 +227,6 @@ If bounds checking were ignored, overhead would be introduced because on derefer
 
 \subsection{Functions}
 
-Functions that are declared in the provided source files are converted into ones compatible with fat pointers.
-
 Functions are duplicated into a function with a modified signature, such that every parameter is replaced by the fat pointer version of that parameter (so a pointer is replaced by a fat pointer, a struct is replaced by a version of the struct that uses fat pointers).
 
 A map from original functions to fat pointer capable functions is kept, and when a call instruction is encountered, the call target is updated to the fat pointer version of the function if it exists.
@@ -236,6 +234,28 @@ A map from original functions to fat pointer capable functions is kept, and when
 If no such fat pointer version exists, there may need to be some conversion code around the call.
 This code will strip any fat pointers that are passed as parameters into raw pointers and, if the function returns a raw pointer, will wrap this into a fat pointer.
 This, newly created fat pointer will have its base set to \verb!NULL!, making it a \textit{NoBounds} pointer described above.
+
+\subsubsection{Multiple Source File Projects}
+
+Since LLVM module passes run on a single *.c source file, issues arise when using functions declared in other source files that the user has still written.
+When Bandage encounters a function definition but no declaration, it assumes that the function is external to the project, and is not to be modified.
+This works well for cases where the included function is part of a library that the programmer cannot modify, such as \verb!malloc! or \verb!printf!, however also is triggered when the function declaration is in another *.c file that the programmer can modify.
+
+Therefore, an additional pass was created, the \textbf{Function List} pass.
+This pass, takes a single llvm IR file and a filename and outputs all of the functions declared in that IR file.
+
+Now, the process for using Bandage is as follows:
+\begin{itemize}
+\item Run the \textbf{Function List} pass over all source files, appending to the same function list file.
+\item Run the \textbf{Bandage} pass over all source files, with the function list file as a parameter.
+\end{itemize}
+
+This gives the Module pass information about other modules that it would not normally have access to, and allows it to distinguish between function definitions for functions the programmer has no control over (so they can be ignored) and function definitions the programmer has control over.
+
+On finding a function definition that matches a function in the function list file, Bandage transforms the function definition.
+This function definition will be identically transformed to the function declaration in the file it is declared in, and so the linker will be able to merge them together after the Bandage transformation is complete.
+
+Additionally, the functions added by Bandage (the null check and the bounds check) are defined in all files it modifies, but only declared in the file if the main function is present.
 
 \subsubsection{malloc}
 
@@ -445,3 +465,12 @@ Here, obviously adding manual null checks to the dereferences of \verb!t! would 
 Bandage searches for compare instructions, comparing pointers to null, and follows them to check for a jump instruction.
 If a jump instruction is found, the basic block jumped to on a successful null check (where the pointer is not null) is marked as not requiring null checks for that pointer.
 The pointer, if not \textit{SAFE} will still undergo bounds checks.
+
+\section{Arrays}
+
+C provides no safety for constant size arrays.
+For completeness, both the Bandage and SoftBound passes implement bounds checking on array access.
+
+This is made almost trivial because the type system carries the bounds of arrays, and therefore in the transformation pass the array access can be modified by looking at the type of the pointer operand to the GEP instruction (used to calculate the address of the requested array entry).
+The type will contain the size of the array, and this can be compared with the GEP offset operand for a bounds check.
+Multidimensional arrays are a simple extension of this.
