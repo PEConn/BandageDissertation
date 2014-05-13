@@ -329,9 +329,21 @@ The third and final dereference follows the same pattern, loading the value at \
 \subsubsection{Table lookup}
 
 This table lookup is performed whenever a pointer stored on the heap is dereferenced, and this is what introduces the major disadvantage of the lookup table approach.
-Such a hash table must map from the address of the pointer to the base and bounds of that pointer.
+Such a table must map from the address of the pointer to the base and bounds of that pointer.
 
-Two different implementations of lookup table were implemented to compare the trade-off between size and lookup cost.
+Bandage was created with an exchangable backend, to allow multiple table implementations.
+The source program can load one of multiple provided headers to implement different types of lookup table, and the correct functions are called for table setup, teardown, lookup and storage.
+
+Three different implementations of lookup table were implemented to compare the trdae-off between size and lookup cost.
+
+\subsubsection{Toy lookup table}
+
+The first implementation is a toy example, consisting of a constant sized array that stores bounds that it is given and is linearly searched for lookup.
+If an attempt is made to add an entry to a filled table, the 'not-most-recently-used' entry is overwritten.
+
+This table was partially created for debugging purposes, but also to examine the idea of imperfect bounds storing.
+Since most programs will have incomplete bounds information from calls to external functions (such as \verb!gets!), the ideal of 100\% bounds coverage is practically not achievable.
+Therefore it is interesting to investigate the performance advantage gained from relaxing the constraint that all internally that all internally declared pointers must have their bounds fully tracked.
 
 \subsubsection{Hash Table}
 
@@ -406,4 +418,30 @@ In terms of implementation, the duplicated functions returned the 'pointer retur
 
 \section{CCured Analysis}
 
-\section{Non-Null Analysis}
+\section{Not-Null Analysis}
+
+Whereas the previous analysis is concerned with spatial safety (overrunning the end of the valid space allocated to a pointer), Cyclone's Not-Null analysis is concerned with temporal safety.
+
+In the CCured analysis, \textit{SAFE} pointers are allowed to be null, and a null check is still inserted before dereference.
+As an optimisation, a simplified form of not-null analysis was implemented, in order to remove some of the redundant null checks.
+
+\subsubsection{Manual Null Checks}
+
+Frequently the programmer will check for null themselves, such as this example from the olden benchmark \verb!TreeAdd!:
+
+\begin{verbatim}
+int TreeAdd(tree_t *t){
+  if(t == NULL)
+    return 0;
+  int leftval = TreeAdd(t->left);
+  int rightval = TreeAdd(t->right);
+  int value = t->val;
+  return leftval + rightval + value;
+}
+\end{verbatim}
+
+Here, obviously adding manual null checks to the dereferences of \verb!t! would be pointless.
+
+Bandage searches for compare instructions, comparing pointers to null, and follows them to check for a jump instruction.
+If a jump instruction is found, the basic block jumped to on a successful null check (where the pointer is not null) is marked as not requiring null checks for that pointer.
+The pointer, if not \textit{SAFE} will still undergo bounds checks.
