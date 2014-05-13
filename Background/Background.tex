@@ -8,6 +8,19 @@ Playing with raw pointers gives power, but is dangerous. Leads to security holes
 
 Give a brief summary of the ~25 papers I did in the literature review, talking about their approaches to pointer safety and going into the classifications: fat pointers/ metadata and object-based vs pointer-based approaches.
 
+\section{Relation to Work Done}
+
+During the course of this project, two different LLVM transformation passes were developed.
+The first uses a fat pointer representation to keep track of the base and bounds information for allocated memory areas, whereas the second keeps this data separate from the pointers themselves.
+
+Therefore, both approaches described in this dissertation use the same method for ensuring temporal pointer safety - checking of base and bounds.
+However the way they store the bounds information is different.
+
+This should result in similar strengths and failings in terms of capability (what violations are caught), but different trade-offs in terms of performance.
+
+
+\textbf{Check I've got the terminology right here}
+
 \section{CCured Analysis}
 
 CCured designates pointer as one of three types: \textit{SAFE}, \textit{SEQ} and \textit{DYNAMIC}.
