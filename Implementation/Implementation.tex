@@ -438,33 +438,33 @@ In terms of implementation, the duplicated functions returned the 'pointer retur
 
 \section{CCured Analysis}
 
-\section{Not-Null Analysis}
-
-Whereas the previous analysis is concerned with spatial safety (overrunning the end of the valid space allocated to a pointer), Cyclone's Not-Null analysis is concerned with temporal safety.
-
-In the CCured analysis, \textit{SAFE} pointers are allowed to be null, and a null check is still inserted before dereference.
-As an optimisation, a simplified form of not-null analysis was implemented, in order to remove some of the redundant null checks.
-
-\subsubsection{Manual Null Checks}
-
-Frequently the programmer will check for null themselves, such as this example from the olden benchmark \verb!TreeAdd!:
-
-\begin{verbatim}
-int TreeAdd(tree_t *t){
-  if(t == NULL)
-    return 0;
-  int leftval = TreeAdd(t->left);
-  int rightval = TreeAdd(t->right);
-  int value = t->val;
-  return leftval + rightval + value;
-}
-\end{verbatim}
-
-Here, obviously adding manual null checks to the dereferences of \verb!t! would be pointless.
-
-Bandage searches for compare instructions, comparing pointers to null, and follows them to check for a jump instruction.
-If a jump instruction is found, the basic block jumped to on a successful null check (where the pointer is not null) is marked as not requiring null checks for that pointer.
-The pointer, if not \textit{SAFE} will still undergo bounds checks.
+%\section{Not-Null Analysis}
+%
+%Whereas the previous analysis is concerned with spatial safety (overrunning the end of the valid space allocated to a pointer), Cyclone's Not-Null analysis is concerned with temporal safety.
+%
+%In the CCured analysis, \textit{SAFE} pointers are allowed to be null, and a null check is still inserted before dereference.
+%As an optimisation, a simplified form of not-null analysis was implemented, in order to remove some of the redundant null checks.
+%
+%\subsubsection{Manual Null Checks}
+%
+%Frequently the programmer will check for null themselves, such as this example from the olden benchmark \verb!TreeAdd!:
+%
+%\begin{verbatim}
+%int TreeAdd(tree_t *t){
+%  if(t == NULL)
+%    return 0;
+%  int leftval = TreeAdd(t->left);
+%  int rightval = TreeAdd(t->right);
+%  int value = t->val;
+%  return leftval + rightval + value;
+%}
+%\end{verbatim}
+%
+%Here, obviously adding manual null checks to the dereferences of \verb!t! would be pointless.
+%
+%Bandage searches for compare instructions, comparing pointers to null, and follows them to check for a jump instruction.
+%If a jump instruction is found, the basic block jumped to on a successful null check (where the pointer is not null) is marked as not requiring null checks for that pointer.
+%The pointer, if not \textit{SAFE} will still undergo bounds checks.
 
 \section{Arrays}
 
@@ -472,5 +472,3 @@ C provides no safety for constant size arrays.
 For completeness, both the Bandage and SoftBound passes implement bounds checking on array access.
 
 This is made almost trivial because the type system carries the bounds of arrays, and therefore in the transformation pass the array access can be modified by looking at the type of the pointer operand to the GEP instruction (used to calculate the address of the requested array entry).
-The type will contain the size of the array, and this can be compared with the GEP offset operand for a bounds check.
-Multidimensional arrays are a simple extension of this.
