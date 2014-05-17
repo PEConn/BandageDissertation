@@ -382,9 +382,40 @@ The advantage of a hash table is that it is quite small, with its size depending
 
 In contrast to the hash table is \verb!memtable!, which maps from areas of memory.
 It essentially creates a linear array of entries, with each entry covering a range of addresses.
-Since we are mapping from pointers, each area of memory mapped from is 8 bytes.
+Since we are mapping from a single pointer to a pair of pointers, each area of memory mapped from is 8 bytes to 16 bytes.
+The size of the table is very large, as it consumes space for every field that it could contain, however value lookup consists only of pointer arithmetic and derefence so is contant time, as is value insertion.
+However, the size of the table means it cannot be entirely contained within the cache, so variable access times may arise due to cache effects.
 
-In this case, the size of the hash table is large, as it consumes space for every field that it could contain, however value lookup consists of pointer arithmetic and an array access so is constant time, as is value insertion.
+Current implementations of x86-64 do not allow programs to use the full range of addresses available to them, so for a pointer of 8 bytes/ 64 bits, only the least significant 48 bits will be used in address translation.
+Additionally, the last 16 bits are a sign extension of the 62nd bit, resulting in addresses falling into two categories, those that begin with 16 '1's and those that begin with 16 '0's.
+
+The upper set of these addresses (those starting with '1') are used by the kernel on most operating systems, with the lower half being used by the application.
+Therefore, the memory table only needs to be able to deal with the lower set - a range of addresses extending from $0$ to $2^{47}$.
+
+However, the memtable needs to be contained within this address space as well, with a ratio of 2 bytes of storage required for every 1 byte the table is capable of mapping.
+To keep the arithmetic tidy, the available memory was partitioned into 4, with 3 quarters being devoted to the table and 1 quarter being used for application memory.
+
+Finally, this application memory needs to have available space at both the top and the bottom.
+This is because the text and initialized data read from the program file are stored at the bottom of the available address space, and the stack and the heap are store at the top end of the address space.
+
+\textbf{This will have a diagram with it.} Therefore, of the $2^{47}$ available addresses the program can have, $2^{45}$ is still used for the program, whereas $3\times 2^{45}$ are used for the memtable.
+The $3\times 2^{45}$ area allocated for the table is positioned at offset $2^{44}$, effectively bisecting the application memory into that used for text and that used for the stack and heap.
+
+Therefore, to find the bounds information associated with the pointer $x$:
+
+\begin{itemize}
+\item If $x$ is greater than $2^{44}$ (it is in the heap and stack region), subtract $3\times 2^{45}$.
+\item Divide the address by $8$ (the entry coverage).
+\item Multiply the address by $16$ (the entry size).
+\item Add the table start offset $2^{44}$.
+\end{itemize}
+
+One of the primary aims of this scheme was to keep implementation simple, and its purpose was to provide a comparison for runtimes.
+Multiple improvements could be made.
+Firstly, the table could be shrunk to 2/3 of the available space, not 3/4.
+Secondly, a split of 50:50 between the text and stack and heap segments of memory may not be ideal.
+
+The idea of some sort of compression for the bounds information was considered, for example storing the base and bound as 32-bit offsets from the value of the pointer instead of 64-bit absolute offsets, however this would require a table update on each piece of pointer arithmetic and would go against the design of SoftBound.
 \subsection{Functions}
 
 Since pointers are copied in function calls, the address of the pointer cannot be used to carry information about the pointer's base and bound across the function boundary.
