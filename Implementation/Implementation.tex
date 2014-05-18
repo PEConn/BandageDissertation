@@ -5,7 +5,7 @@ An \verb!i32! stands for a 32-bit integer, a \verb!i8! stands for an 8 bit integ
 
 \section{Working with pointers in LLVM IR}
 
-In LLVM IR, variables are created with an \verb!alloca! instruction, which returns a pointer to the allocated variable (which is allocated on the stack).
+In LLVM IR, space on the stack is set aside with the \verb!alloca! instruction, which returns a pointer to the allocated memory.
 Therefore the line \verb!int a! in C is converted into \verb!%a = alloca i32! in LLVM IR.
 It should be noted that the variable \verb!%a! is actually the type of \verb!i32*!.
 This means that in the declaration \verb!int *a! will create in LLVM IR the variable \verb!%a! of type \verb!i32**!.
@@ -137,16 +137,16 @@ The first step in the pointer transformation is to find all \verb!alloca! instru
 Even at this early stage we can add some safety to the program by initialising the fat pointer value to be null.
 
 In terms of performance, we are swapping one allocation instruction allocating a pointer's worth of memory with another, allocating three pointers worth of memory. 
-On testing this was found to produce no performance difference.
+On testing this was found to produce no performance difference, though could increase cache pressure (as the number of pointers that can fit on the cache are divided by three).
 
-When the value was set to \verb!NULL!, an overhead of 1.7% was added.
+When the value was set to \verb!NULL!, an overhead of 1.7\% was added.
 
 \subsubsection{Instruction-based vs Chain-based}
 
 The original implementation of bandage moved through the program and transformed it on an instruction-by-instruction basis, gathering all information from the transformation from the instruction being transformed (eg the opcode, its arguments, the types of the arguments and the instruction type).
 
 It was found that this approach, though originally simple, rapidly gained complexity as more sophisticated transformations were needed.
-Upon integration with the CCured pointer analysis, the implementation was switched to a different, more holistic approach, that of instruction-chains.
+Upon integration with the CCured-like pointer analysis, the implementation was switched to a different, more holistic approach, that of instruction-chains.
 
 An instruction chain is a sequence of instructions, where every instruction is used by the subsequent instruction.
 Under this implementation, the source is searched for allocation instructions and call instructions - the two instructions that start instruction chains, and their usage was followed.
@@ -268,13 +268,53 @@ The value of the fat pointer is set to \verb!NULL!.
 
 \subsection{Structs}
 
-Structures need to be modified to hold fat pointers instead of pointers, eg:
+First, it is nessecary to isolate the structs that can be modified - those that are defined and used only in the code that Bandage can modify.
+For example, Bandage should be able to recognise that \verb!FILE! struct, included from \verb!stdio.h! should not be modified.
 
-\begin{verbatim}
+To accomplish this, Bandage collects all of the structs used in the input file, and subtracts from this set those structs that are used in functions (as a parameter or return type) that are declared, but not defined.
+So for example, \verb!FILE! would originally be flagged for modification, but upon discovery of the function declaration for \verb!fopen!, it would be removed from the list.
+In order to play nicely with projects that consist of multiple source files, the function file used to determine which functions can be modified is used again.
 
-\end{verbatim}
+Once the safe to modify structs are isolated, two modifications must be carried out on them:
+
+\begin{itemize}
+\item Pointers within the struct must be modified to fat pointers of the same object.
+\item Structs within the struct must be changed to structs that themselves are modified.
+This includes correctly modifying self-referential structs, such as a linked list.
+\end{itemize}
+
+The latter point is made simple due to an upgrade to the LLVM type system introduced in LLVM 3.0, type completion.
+This allows a type to be specified with no body, be used and have its body filled in later.
+
+Therefore the algorithm to create the fat pointer types consists of:
+
+\begin{itemize}
+\item Collect a set of all struct.
+\item Subtract those structs that are used in functions that are defined externally.
+\item Create an empty type, for each struct in the set.
+\item For each struct in the set:
+\begin{itemize}
+\item For each element in the struct construct a new element with a type such that:
+\begin{itemize}
+\item For every layer of pointer indirection, there is now a fat pointer.
+\item For every nesting of static arrays, there is a static array of the same dimension, but potentially of a new type.
+\item If the base type is a struct which is in the set, change it to the (potentially empty) fat pointer capable struct.
+\end{itemize}
+\item Fill the previously empty type.
+\end{itemize}
+\end{itemize}
+
+In this way, all structs can be modified in any plain linear order without having to worry about which structs reference other structs.
 	
 \subsubsection{Sizeof Woes}
+
+The Bandage pass works on LLVM IR an intermediate stage created by the clang compiler.
+Unfortunately the clang compiler replaces instances of the \verb!sizeof! operator with constant integers in this process.
+
+The fat pointer versions of structs will always be equal to or larger in size than their raw counter parts, as pointers take up three times their previous size.
+This leads to the undesirable situation where the source program allocates an area of memory for a struct using the common \verb!MyStruct *S = malloc(sizeof(MyStruct))! idiom.
+The LLVM IR will contain a constant integer (indistinguishable from other all other constant integers) representing the size of the original struct, though the actual struct used will be the fat pointer version, which requires more memory.
+This can lead to memory access violations.
 
 \section{The Bounds Check Function}
 
@@ -465,7 +505,58 @@ We only need the bounds of the immediate pointer since the bounds of anything th
 
 In terms of implementation, the duplicated functions returned the 'pointer return' object and code was added at each call site to extract the value, base and bound and to associate the value with the base and bound.
 
-\subsection{Setting pointer bounds}
+\section{Setting pointer bounds}
+
+The two most common actions that cause a change in pointer bounds are detailed in the functions section above - \verb!malloc! and \verb!free!.
+For the former, the base and bound of the set pointer are set to the return value and the return value plus the parameter respectively.
+For the latter, the value is set to null.
+
+The following sections cover the other common situations in which bounds information for a pointer is changed.
+
+\subsection{Setting to constant string}
+
+LLVM IR displays a distinct pattern for the following code:
+
+\begin{verbatim}
+char *username="george";
+\end{verbatim}
+
+The constant string is stored in the file text section as a \verb!private unnamed_addr constant [Y x i8]! (where \verb!Y! is the length of the string, including null terminator).
+The assignment is a \verb!store! instruction with the value being a GEP operator (which is different from a GEP instruction) to the start of the memory allocated to the string.
+
+Since setting to a constant string is a static operation - the string and its length are known at compile time, setting the bounds is also a static operation.
+Bandage detects the type of the string (the constant-sized character array) and sets the bound equal to the base plus the size.
+
+\subsection{Setting to the address}
+
+\begin{verbatim}
+int b;
+int *a=&b;
+\end{verbatim}
+
+For this situation a more general, run-time method is used to detemine the size of the r-value.
+A GEP is created to the type of the r-value, with its first operand being a null pointer (so the address calculation starts at the offset zero), and with its other operand specifying the second object of that type.
+
+This causes a calcuation, starting from offset zero, calculating the address of the second object of that type in a non-existant array.
+This will return the size of the r-value.
+As before, on non-ARM processors the GEP will be be reduced to a constant in further stages of compilation.
+
+\subsection{Setting to another pointer}
+
+Setting a pointer equal to another pointer is simple, the bounds information of the r-value is set to that of the l-value, as is the value of the pointer.
+Occasionally, pointer casts may be need to be inserted for typing (as the bounds are typed equal to the pointer, so if the pointer is cast, so must the bounds).
+
+\subsection{Setting to pointer arithmetic}
+
+The bounds information is modified as above, though this time the value of the r-value fat pointer has arithmetic performed on it (in the form of GEP instructions) before being stored in the value of the l-value fat pointer.
+
+At this point, no bounds checks are performed, it is perfectly legal for a pointer to have arithmetic performed on it that leads it to go out of bounds and later to have further arithmetic that brings it back into bounds.
+
+\subsection{Setting to NULL}
+
+Finally, pointers are frequently set to be equal to the null constant.
+In this case, the bounds information is not changed, only the value.
+The reason for this being that a null pointer is flagged by bounds checking before the bounds information is touched and therefore two additional assignments would add unessecary overhead.
 
 \section{CCured Analysis}
 

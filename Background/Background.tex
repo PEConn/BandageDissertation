@@ -4,6 +4,29 @@
 
 Playing with raw pointers gives power, but is dangerous. Leads to security holes. Example of buffer overflow attack.
 
+\section{Spatial and Temporal Pointer Safety}
+
+There are two types of safety that can be provided when dealing with pointers - temporal and spatial.
+Temporal safety ensures that the pointer points to a valid area of memory at the time that it is dereferenced, while spatial safety just ensures that the pointer points to a valid area of memory at a certain time.
+
+The methods explored in this dissertation provide spatial safety, but not complete temporal safety.
+Consider the following code:
+
+\begin{verbatim}
+int *a=malloc(sizeof(int));
+int *b=a;
+
+free(a);
+
+printf("%d\n", *a);
+printf("%d\n", *b);
+\end{verbatim}
+
+The methods implemented in this dissertation will catch the memory access error introduced by the first \verb!printf! statement, but not by the second.
+This is because the information about pointer validity is associated with the pointer, and so when \verb!a! is freed the information associated with it indicates that it does not point to valid memory, but the information associated with \verb!b! is not likewise updated.`
+
+Therefore the techniques implemented in this dissertation do not provide complete pointer safety, but provide an additional layer of robustness.
+
 \section{Literature Review}
 
 Give a brief summary of the ~25 papers I did in the literature review, talking about their approaches to pointer safety and going into the classifications: fat pointers/ metadata and object-based vs pointer-based approaches.
