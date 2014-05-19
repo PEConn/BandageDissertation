@@ -1,0 +1,39 @@
+\begin{figure}
+\centering
+\begin{tikzpicture}
+  \begin{axis}[ 
+      xlabel=Linked List Size,
+      ylabel=Runtime,
+      minor x tick num=1,
+      grid=both
+    ] 
+    \addplot coordinates{
+(	0	,	0	)
+(	10000	,	5	)
+(	20000	,	10	)
+(	30000	,	15	)
+(	40000	,	20	)
+(	50000	,	25	)
+(	60000	,	30	)
+(	70000	,	35	)
+(	80000	,	39	)
+(	90000	,	45	)
+
+    }; 
+    \addplot coordinates{
+(	0	,	0	)
+(	10000	,	8	)
+(	20000	,	21	)
+(	30000	,	29	)
+(	40000	,	38	)
+(	50000	,	48	)
+(	60000	,	58	)
+(	70000	,	67	)
+(	80000	,	77	)
+(	90000	,	86	)
+    }; 
+  \end{axis}
+\end{tikzpicture}
+\caption{Accuracy on training data as a function of insertion penalty for basic broad class models.}
+\label{fig:bbcmpenalties}
+\end{figure}
