@@ -1,26 +1,107 @@
-\documentclass{book}
+%% 
+%% ACS project dissertation template. 
+%% 
+%% Currently designed for printing two-sided, but if you prefer to 
+%% print single-sided just remove ",twoside,openright" from the 
+%% \documentclass[] line below. 
+%%
+%%
+%%   SMH, May 2010. 
 
-\title{Rough Dissertation}
-\author{Peter E Conn}
 
+\documentclass[a4paper,12pt,twoside,openright]{report}
+
+
+%%
+%% EDIT THE BELOW TO CUSTOMIZE
+%%
+
+\def\authorname{Peter E.\ Conn\xspace}
+\def\authorcollege{Trinity Hall\xspace}
+\def\authoremail{pc424@cl.cam.ac.uk}
+\def\dissertationtitle{A Safety Enhancing Source Translation for C}
+\def\wordcount{xx,xxx}
+
+\usepackage{epstopdf}
+\usepackage{epsfig,graphicx,parskip,setspace,tabularx,xspace} 
+\usepackage{pgfplots}
 \usepackage{tikz}
 \usepackage{amsmath}
-\usepackage{pgfplots}
 \usetikzlibrary{shapes, arrows}
 
+%% START OF DOCUMENT
 \begin{document}
-\maketitle
 
-\textbf{Abstract}
+
+%% FRONTMATTER (TITLE PAGE, DECLARATION, ABSTRACT, ETC) 
+\pagestyle{empty}
+\singlespacing
+\input{titlepage}
+\onehalfspacing
+\input{declaration}
+\singlespacing
+\newpage
+{\Huge \bf Abstract}
+\vspace{24pt} 
 
 This dissertation implememts systems for providing spatial pointer safety in C.
 Both a fat pointer approach, where the additional information is stored with the pointers and a meta-data approach where the information is stored seperately and associated with the pointers are implemented and compared.
 Finally the performance benefit gained by using a CCured-like analysis to detect and remove needless bounds checks is investigated.
 
-\tableofcontents
+\newpage
+\vspace*{\fill}
 
+\pagenumbering{roman}
+\setcounter{page}{0}
+\pagestyle{plain}
+\tableofcontents
+\listoffigures
+\listoftables
+
+\onehalfspacing
+
+%% START OF MAIN TEXT 
+
+\chapter{Introduction}
+\pagenumbering{arabic} 
+\setcounter{page}{1} 
+
+\cite{jones1997backwards}.
+This is the introduction where you should introduce your work.  In
+general the thing to aim for here is to describe a little bit of the
+context for your work --- why did you do it (motivation), what was the
+hoped-for outcome (aims) --- as well as trying to give a brief
+overview of what you actually did.
+
+It's often useful to bring forward some ``highlights'' into 
+this chapter (e.g.\ some particularly compelling results, or 
+a particularly interesting finding). 
+
+It's also traditional to give an outline of the rest of the
+document, although without care this can appear formulaic 
+and tedious. Your call. 
+
+\chapter{Background} 
 \input{Background/Background}
+
+\chapter{Related Work} 
+\input{RelatedWork/RelatedWork}
+
+\chapter{Design and Implementation} 
 \input{Implementation/Implementation}
+
+
+\chapter{Evaluation} 
 \input{Evaluation/Evaluation}
+
+
+\chapter{Summary and Conclusions} 
+
+
+\appendix
+\singlespacing
+
+\bibliographystyle{unsrt} 
+\bibliography{Bibliography} 
 
 \end{document}

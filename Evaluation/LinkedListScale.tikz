@@ -34,6 +34,6 @@
     }; 
   \end{axis}
 \end{tikzpicture}
-\caption{Accuracy on training data as a function of insertion penalty for basic broad class models.}
+\caption{Increase in runtime following a Linked List as size increases}
 \label{fig:bbcmpenalties}
 \end{figure}
