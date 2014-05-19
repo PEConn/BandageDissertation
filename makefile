@@ -1,5 +1,5 @@
-TEXS= $(shell find . -name ".tex")
-TIKZS=$(shell find . -name ".tikz") 
+TEXS= $(shell find . -name "*.tex")
+TIKZS=$(shell find . -name "*.tikz") 
 	
 LATEX=latex
 BIBTEX=bibtex

@@ -10,3 +10,15 @@ Additionally, \verb!malloc! is modified so that the memory surrounding that allo
 
 However, address sanitizer provides no mapping between the valid areas of memory and variables.
 It would be possible for pointer arithmetic to be used to to still cause a buffer overflow into another variables' valid area of memory, though it must jump over the poisoned area.
+
+Hardbound criticizes prior work, saying that it either introduces high overhead, isn't complete or introduces incompatibility \cite{devietti2008hardbound}.
+In contrast it proposes to shift the bounds checking to hardware, and akin to SoftBound stores the bounds information separately from the pointer.
+
+\section{SoftBound}
+
+One of the two main systems implemented in this dissertation is SoftBound \cite{nagarakatte2009softbound}.
+It is a compile-time transformation that stores information about the valid area of memory associated with a pointer separately from the pointer.
+
+By storing information separately from the pointer, memory layout doesn't change, enabling binary compatibility and reducing implementation effort, however it does require a search for suitable bounds information on pointer dereference.
+Additionally the paper contains a proof that spatial integrity is provided by checking the bounds of pointers on a store or load.
+
