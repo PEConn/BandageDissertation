@@ -1,0 +1,12 @@
+Since C is such a popular language and pointer based bugs are both widespread and highly exploitable, there have been many efforts to introduce pointer safety to C, and many different approaches.
+
+LLVM's address sanitizer \cite{llvmAddrSan, llvmAddrSanAlgo} can be considered state of the art and  is capable of detecting out-of-bounds accesses on the heap, stack and for globals, use-after-free, and some use-after return bugs.
+
+It does this by creating a copy of memory, called shadow memory, where 1 byte of shadow memory maps to 8 bytes of real memory.
+This takes advantage of the fact that \verb!malloc! is guaranteed to return an 8-byte aligned segment of memory, therefore a value of 0 in shadow memory means the corresponding main memory is valid, a negative value means the corresponding main memory is invalid and a positive value of $n$ means the first $n$ bytes are valid and the rest are invalid.
+
+The \verb!malloc! and \verb!free! functions are modified so as to mark the shadowed areas of memory as valid and poisoned respectively.
+Additionally, \verb!malloc! is modified so that the memory surrounding that allocated to the program is poisoned to prevent overflows.
+
+However, address sanitizer provides no mapping between the valid areas of memory and variables.
+It would be possible for pointer arithmetic to be used to to still cause a buffer overflow into another variables' valid area of memory, though it must jump over the poisoned area.
