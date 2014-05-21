@@ -80,6 +80,23 @@ These tests were repeated with a linked lists of different lengths to investigat
 
 \input{Evaluation/LinkedListScale.tikz}
 
+\section{Olden Benchmarks}
+
+\subsection{Treeadd}
+
+The treeadd benchmark constructs a binary tree where each node contains a value in addition to two children (all values are set to 1).
+A depth-first search is then performed, accumulating the value at each node.
+
+The implementation of CCured-like analysis counts all member pointers as a non-SAFE type (since the actions on the pointer and therefore the CCured type will be different for each instance), meaning that the tree traversal doesn't benefit from CCured-analysis.
+
+Under Bandage, the tree construction stage, dominated by memory allocations took a \verb!42%! performance hit and the tree traversal stage took a \verb!77%! performance hit.
+
+% 744809 223446 968255
+% 1060893 395186 1456079
+% Unoptimized bounds checking
+
+\subsection{Bisort}
+
 \section{Correctness}
 
 
