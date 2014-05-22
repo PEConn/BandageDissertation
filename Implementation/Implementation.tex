@@ -505,6 +505,57 @@ The reason for this being that a null pointer is flagged by bounds checking befo
 
 \section{CCured Analysis}
 
+In the CCured paper, pointers are classified into three qualifiers: \textit{SAFE}, \textit{SEQ} and \textit{DYN}.
+Pointers are represented by a tuple, containing the original allocation of the pointer (the \verb!alloca! instruction) and the number of dereferences applied, this way in the analysis, a multi-level pointer is split up so that each level can be classified differently.
+
+\subsection{Constraint Collection}
+
+The CCured-like analysis implemented contains four different constraints:
+\begin{itemize}
+\item \textit{PointerArithmetic}, which applies to one pointer.
+\item \textit{SetToPointer}, which contains the l-value and r-value pointer.
+\item \textit{SetToFunction}, which contains the l-value pointer and the function.
+\item \textit{IsDynamic}, which applies to one pointer.
+\end{itemize}
+
+The instructions are iterated through, collecting all pointer allocations.
+Each function is examined and if the return value is a pointer, the pointer returned is associated with the function.
+Similarly the function's parameters are associated with the function and their position in the parameter list.
+
+Every store to a pointer is then examined, with the following actions:
+
+\begin{itemize}
+\item If the r-value is a pointer, a \textit{SetToPointer} constraint is created.
+\item If the r-value is a function, a \textit{SetToFunction} constraint is created.
+\item If the r-value is a cast from an integer, a \textit{IsDynamic} constraint is created.
+\item If the r-value is a constant that isn't null, a \textit{IsDynamic} constraint is created.
+\end{itemize}
+
+Every pointer that has a \verb!GEP! performed on it (that isn't a struct type) has the \textit{PointerArithmetic} constrain created.
+
+\subsection{Constraint Solving}
+
+The constraints used in the CCured-like analysis are quite simple and can be solved with a linear process.
+A map of pointers (the allocation and dereference level pair) to types is created and the following sequence is followed:
+
+\begin{enumerate}
+\item All pointers that have the \textit{IsDynamic} constraint are set to the \textit{DYN} qualifier.
+\item All \textit{SetToFunction} constraints are transformed to \textit{SetToPointer} constraints with the r-value being set to the pointer associated with that function.
+\item All \textit{SetToPointer} constraints where the r-value and the l-value are of different types have both l-value and r-value set to \textit{DYN} qualifier (this constraint is specified in the CCured-paper, though it seems a bit strong to my, surely only the l-value need be set to \textit{DYN}).
+\item All pointers with the \textit{IsArithmetic} constraint are set to the \textit{SEQ} qualifier.
+\item The following is repeated until no further changes are made:
+    \begin{enumerate}
+        \item For each \textit{SetToPointer} constraint:
+        \begin{itemize}
+            \item If either l-value or r-value are \textit{DYN}, set both to \textit{DYN}.
+            \item If the l-value is \textit{SEQ} and the r-value is \textit{SAFE}, set the r-value to \textit{SEQ}
+        \end{itemize}
+        \item For each pointer (allocation and level pair) that is \textit{DYN}, set all pointers from the same allocation with a greater level to also be \textit{DYN}.
+    \end{enumerate}
+\end{enumerate}
+
+\textbf{I should go over the CCured-analysis part in the Literature Review section and clearly state the constraints. Then when detailing this, I can refer to which constraints which part of the algorithm are fulfilling}
+
 %\section{Not-Null Analysis}
 %
 %Whereas the previous analysis is concerned with spatial safety (overrunning the end of the valid space allocated to a pointer), Cyclone's Not-Null analysis is concerned with temporal safety.
