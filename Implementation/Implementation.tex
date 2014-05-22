@@ -253,8 +253,6 @@ This gives the Module pass information about other modules that it would not nor
 On finding a function definition that matches a function in the function list file, Bandage transforms the function definition.
 This function definition will be identically transformed to the function declaration in the file it is declared in, and so the linker will be able to merge them together after the Bandage transformation is complete.
 
-Additionally, the functions added by Bandage (the null check and the bounds check) are defined in all files it modifies, but only declared in the file if the main function is present.
-
 \subsubsection{malloc}
 
 When a \verb!malloc! instruction is encountered, the fat pointer being assigned to has its value and base set to the return value, and its bound set to the base plus the argument to the malloc instruction (the size of the area of memory to be allocated).
