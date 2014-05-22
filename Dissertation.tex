@@ -71,20 +71,34 @@ In addition, this is the first time CCured-like analysis has been used to augmen
 \pagenumbering{arabic} 
 \setcounter{page}{1} 
 
-\cite{jones1997backwards}.
-This is the introduction where you should introduce your work.  In
-general the thing to aim for here is to describe a little bit of the
-context for your work --- why did you do it (motivation), what was the
-hoped-for outcome (aims) --- as well as trying to give a brief
-overview of what you actually did.
+Pointer errors account for many bugs in C, ranging from simple off-by-one errors where the programmer writes one past the end of the array to malicous buffer overflow attacks, where an attacker inputs data designed to manipulate the code into writing past the end of the array and over some other important data.
 
-It's often useful to bring forward some ``highlights'' into 
-this chapter (e.g.\ some particularly compelling results, or 
-a particularly interesting finding). 
+C allows many practices that make such errors easy to make, for example a pointer can legally point one past the end of an array (although dereferencing it is undefined).
+Also, in practice, a pointer frequently starts pointing to its valid area of memory and then is modified (through pointer arithmetic) to point to an invalid area of memory.
+This pointer is modified again, bringing it back to point to the valid area and used.
 
-It's also traditional to give an outline of the rest of the
-document, although without care this can appear formulaic 
-and tedious. Your call. 
+One method of dealing with such attacks is to keep track of data about the valid area of memory that a pointer has access to, and consult this data on pointer dereference.
+In this dissertation, the data used to determine the validity of a pointer is the address of the start of the area of allocated memory (the base) and the address one past its end (the bound).
+Furthermore, the base and bound data must be associated with the pointer in some way.
+
+One aim of this dissertation is to investigate the runtime, completeness and implementation tradeoffs of two different methods of associating the data with the pointers.
+With fat pointers, pointers themselves are replaced by structures that contain the pointer value and their bounds information.
+With a metadata approach, the address of the pointer is used as the key to a lookup table containing the bounds information.
+
+In addition, many pointers are not modified using pointer arithmetic during the life of the program and a blanket strategy of creating a bounds check on every pointer dereference can introduce a large, unnecessary overhead.
+To this end, a method of identifying pointers that do not require bounds checking, CCured-like analysis was implemented and the savings this optimization cause are investigated.
+
+
+\textbf{Pointers from library functions}
+
+\textbf{Highlights}
+
+This dissertation continues with brief coverage of the background information required: the types of pointer safety, examples of vulnerabilities caused by lack of it and an overview of how pointers are dealt with in LLVM IR.
+A related work section follows, enumerating previous efforts to provide pointer safety, drawing together common themes between them and highlighting the position of this work.
+
+The design and implementation section contains details of the two transformation passes (the fat pointer and the metadata) and the one analysis pass (the CCured-like analysis).
+The evaluation section covers the runtime penalties, tested on handcrafted microbenchmarks and the olden benchmark suite, alongside performance security focussed correctness tests.
+Everything is wrapped up in the conclusion and a few example source programs are annotated in the appendices to give a concrete view of the transformations performed.
 
 \chapter{Background} 
 \input{Background/Background}
