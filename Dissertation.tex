@@ -90,13 +90,25 @@ and tedious. Your call.
 \chapter{Design and Implementation} 
 \input{Implementation/Implementation}
 
-
 \chapter{Evaluation} 
 \input{Evaluation/Evaluation}
 
-
 \chapter{Summary and Conclusions} 
 
+\section{Software Engineering Practices}
+
+The use of a strong test suite was invaluable during the implementation, and the only thing I would change if I did this again would be making it even stronger.
+
+In terms of implementation costs, implementing Bandage took considerably more effort and was far more bug prone than implementing SoftBound.
+This is in large part due to Bandage changing the representation of pointers - making the change from raw pointers to fat pointers required a considerable amount of code to be written in one piece - if the entire change did not work, the source programs would break.
+In the SoftBound implementation however, the implementation could be broken down into small pieces (eg providing bounds for local variables, then passing them through functions), and at each stage the source programs would compile, though the checking may not be complete.
+
+Although this does provide a nice guarantee with Bandage that if the program compiles, bounds checking is more likely to be thorough, it creates an all-or-nothing situation in the presence of cases that haven't been implemented where Bandage either breaks the code or performs well, while Softbound can provide bounds checking for that that has been implemented.
+
+Initially, only the Bandage system was to be implemented.
+Therefore keeping the Bandage transformation pass separate from the CCured-like analysis pass proved beneficial as it could be easily reused to provide the same information to the SoftBound transformation.
+
+Unexpected setbacks were discovered in trying to run the Softbound transformation on the Raspberry Pi, as both uthash and memtables required modification to run on 32-bit systems.
 
 \appendix
 \singlespacing

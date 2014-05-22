@@ -454,6 +454,15 @@ Firstly, the table could be shrunk to 2/3 of the available space, not 3/4.
 Secondly, a split of 50:50 between the text and stack and heap segments of memory may not be ideal.
 
 The idea of some sort of compression for the bounds information was considered, for example storing the base and bound as 32-bit offsets from the value of the pointer instead of 64-bit absolute offsets, however this would require a table update on each piece of pointer arithmetic and would go against the design of SoftBound.
+
+\subsubsection{Memtable for 32 bit architectures}
+
+The above implementation assumes a 64-bit architecture.
+In the evaluation section, benchmarks are run on a Raspberry Pi (to examine how well parallelism masks bounds checking).
+For this purpose, the memtable was modified to run on 32-bit architectures, which modified the arithmetic behind the memtable, but not the core concept.
+
+The top $2^{30}$ addresses are reserved for use by the kernel, leaving $3 \times 2^{30}$ addresses for use by the application, again with the stack and heap on the top, and text and data at the bottom.
+This time, $2^{31}$ bytes are consumed by the memtable, with $2^{29}$ bytes left above for the stack and heap, and $2^{29}$ bytes left below for the text and data.
 \subsection{Functions}
 
 Since pointers are copied in function calls, the address of the pointer cannot be used to carry information about the pointer's base and bound across the function boundary.
