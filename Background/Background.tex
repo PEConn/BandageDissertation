@@ -26,75 +26,94 @@ This is because the information about pointer validity is associated with the po
 Therefore the techniques implemented in this dissertation do not provide complete pointer safety, but provide an additional layer of robustness.
 
 
-\textbf{The following two sections should be moved}
+During this chapter, types will be referred to in LLVM notation.
+An \verb!i32! stands for a 32-bit integer, a \verb!i8! stands for an 8 bit integer (or char) and a pointer to a type is denoted by the type followed by an asterisk.
 
+In LLVM IR, space on the stack is set aside with the \verb!alloca! instruction, which returns a pointer to the allocated memory.
+Therefore the line \verb!int a! in C is converted into \verb!%a = alloca i32! in LLVM IR.
+It should be noted that the variable \verb!%a! is actually the type of \verb!i32*!.
+This means that in the declaration \verb!int *a! will create in LLVM IR the variable \verb!%a! of type \verb!i32**!.
 
-\section{Relation to Work Done}
-
-During the course of this project, two different LLVM transformation passes were developed.
-The first uses a fat pointer representation to keep track of the base and bounds information for allocated memory areas, whereas the second keeps this data separate from the pointers themselves.
-
-Therefore, both approaches described in this dissertation use the same method for ensuring temporal pointer safety - checking of base and bounds.
-However the way they store the bounds information is different.
-
-This should result in similar strengths and failings in terms of capability (what violations are caught), but different trade-offs in terms of performance.
-
-
-\textbf{Check I've got the terminology right here}
-
-\section{CCured Analysis}
-
-CCured designates pointer as one of three types: \textit{SAFE}, \textit{SEQ} and \textit{DYNAMIC}.
-\textbf{Explain what each of these mean}
-While the CCured language itself has pointers explicitly marked as one of these types, its main goal is to allow the use of CCured with existing unmodified C programs and it uses a type inference algorithm to do so.
-
-Every pointer is annotated with a *qualifier variable*, which is one of the three above types.
-We'll use $Q(a)$ to mean the qualifier variable of $a$ and $T(a)$ to mean the type pointed to by $a$.
-These can be recursive, with the type pointed to by $a$ being a pointer itself, for example $a$ could be of type $int\; \mbox{ref}\; SAFE\; \mbox{ref}\; SAFE$, in which case $T(a) = int\;\mbox{ref}\;SAFE$.
-
-\subsection{CCured Constraint Collection}
-
-There are three operations that generate constraints in a C program, these are arithmetic, casting and assignment.
-
-Arithmetic is the simplest one of these, and says that if a pointer has arithmetic performed on it, it cannot be \textit{SAFE}.
+The \verb!store! instruction takes a piece of data and a pointer and stores the data in the area pointed to.
+The following C code turns into the following LLVM code:
 
 \begin{verbatim}
-int *a;
-int *b;
-
-a = b + 4;
+int a;
+int b;
+a = b;
 \end{verbatim}
-
-Two constraints are generated here, one from the arithmetic and one from the assignment.
-The arithmetic constraint marks the pointer that has arithmetic performed on it, so in this case, $Q(b) != SAFE$.
-
-Assignment is slightly more complicated, the assignment \verb|a = b| generates the following contraints if both a and b are pointers:
 
 \begin{verbatim}
-Q(a) = Q(b) = DYNQ 
-\/ (
-       (Q(a) = Q(b) = SAFE 
-       \/ Q(a) = Q(b) = SEQ
-       \/ Q(a) = SAFE /\ Q(b) = SEQ) 
-    \/ T(a) = T(b)
-)
+%a = alloca i32
+%b = alloca i32
+%1 = load i32* %b
+store i32 %1, i32 %a
 \end{verbatim}
 
-The first line is a provision that a \textit{DYNAMIC} pointer can be set to a \textit{DYNAMIC} pointer regardless of the types.
+Here, spaces on the stack for the variables \verb!a! and \verb!b! are created, and pointers to these spaces are stored in the variables \verb!%a! and \verb!%b! respectively.
+The value stored in the area pointed to by \verb!%b! is loaded, and then stored in the area pointed to by the variable \verb!%a!.
 
-The remaining lines allow the matching up of qualifiers given if the types pointed to are equal.
-A \textit{SAFE} pointer can be set to a \textit{SAFE} pointer, a \textit{SEQ} pointer can be set to a \textit{SEQ} pointer and a \textit{SAFE} pointer can be set to a \textit{SEQ} pointer.
-In the last case, a bounds check is performed to ensure the safe pointer is set to a value within the bounds of the sequential pointer.
-After the assignment, the safe pointer contains no further bounds information.
+\begin{verbatim}
+int *c;
+int d;
+...
+*c = d;
+\end{verbatim}
 
-One final case exists for the assignment of \verb|a = b|, where $b$ is an integer and $b$ is a pointer.
-In this case, the only constraint generated is $Q(e) != SAFE$.
+\begin{verbatim}
+%c = alloca i32*
+%d = alloca i32
+...
+%1 = load i32** %c
+%2 = load i32* %d
+store i32 %2, i32* %c
+\end{verbatim}
 
-Similar constraints are generated on a cast.
+Here, in the C code we are assigning the value held in \verb!d! to the memory location pointed to by \verb!c! (assume that \verb!c! is set to a valid memory address during the \verb!...! otherwise the code results in undefined behaviour).
 
-After the source code is iterated through and all of the constraints are generated, a constraint solver is run and the qualifiers for all variables.
+In LLVM IR, the variable \verb!%c! is created with type \verb!i32**! and the variable \verb!%d! is created with type \verb!i32*!.
+The value stored in the memory pointed to by \verb!%c! is loaded into \verb!%1!, so \verb!%1! now contains the address pointed to by \verb!c! in the C code.
+The value stored in the memory pointed to by \verb!%d! is loaded into \verb!%2! (the value contained within \verb!d! in the C code).
+Finally the memory pointed to by \verb!%1! is set to the value contained in \verb!%2!.
 
-%\section{Cyclone Not-Null pointers}
+The last interesting instruction for working with pointers is the GEP instruction.
+GEP stands for 'Get Element Pointer', and is used for performing pointer arithmetic (it itself does not peform and memory access).
 
-%In the CCured system, even \textit{SAFE} pointers must undergo null checks on dereference.
-%The Cyclone dialect of C contains the notion of a not-NULL pointer - one that can never hold the value NULL.
+\begin{verbatim}
+int *a, *b, *d;
+int c;
+a = b + 3;
+c = d[3];
+\end{verbatim}
+
+\begin{verbatim}
+%a = alloca i32*
+%b = alloca i32*
+%c = alloca i32
+%d = alloca i32*
+
+%1 = load i32** %b
+%2 = getelementptr %1, i32 0, i32 3
+store i32* %2, %a
+
+%3 = load i32** %d
+%4 = getelementptr %3, i32 0, i32 3
+%5 = load i32* %4
+store i32 %5, %c
+\end{verbatim}
+
+\verb!%1! contains the value of \verb!b! and the getelementptr is used for the pointer arithmetic.
+The variable \verb!%1! is of type \verb!i32*!.
+The second parameter of the GEP specifies how many of the size of the type of the first parameter we want to add.
+In this case, and in most cases it is zero, saying that we don't want to add any of \verb!sizeof(i32*)! to the first parameter.
+The third parameter specifies how many of the size of the type of the value contained within the first parameter we want to add, and in this case, we want to add \verb!3 * sizeof(i32)!.
+Therefore the GEP returns:
+
+\begin{verbatim}
+%2 = %1 + 0 * sizeof(i32*) + 3 * sizeof(i32)
+\end{verbatim}
+
+This address is then stored in the memory pointed to by \verb!%a!.
+
+The second operation can be rewritten as \verb!c = *(d + 3)!, so starts the same as the previous operation, except once the address of \verb!d+3! has been calculated, it is dereferenced to get the value contained there.
+
