@@ -1,6 +1,117 @@
 \section{Pointer Safety}
 
-Playing with raw pointers gives power, but is dangerous. Leads to security holes. Example of buffer overflow attack.
+One of the primary advantages of C is that it gives the programmer a model that is very close to hardware, allowing access to essentially arbitrary areas of memory.
+Though this is very powerful, it can also be very dangerous and numerous security vulnerabilities have arisen from programmers not putting careful checks on their memory operations.
+
+\subsection{Buffer Overflow Attack}
+
+In a buffer overflow attack, the attacker makes use of the memory layout of the program to overwrite a variable that they should not have access to.
+
+\begin{verbatim}
+#include <stdio.h>
+#include <string.h>
+
+int main(void){
+    char user[16];
+    char pass[16];
+    int userid = 0;
+
+    printf("Username: ");
+    gets(user);
+    printf("Password: ");
+    gets(pass);
+
+    if(PasswordCorrect(user, pass))
+        userid = GetUserId(user);
+
+    if(userid == 0){
+        printf("Invalid username or password.");
+        return;
+    }
+
+    ...
+}
+\end{verbatim}
+
+\begin{verbatim}
+// In stdio
+char *gets(char *buf)
+{
+    int c;
+    char *s;
+
+    for (s = buf; (c = getchar()) != '\n';)
+        if (c == EOF)
+            if (s == buf)
+                return (NULL);
+            else
+                break;
+        else
+            *s++ = c;
+    *s = 0;
+    return (buf);
+}
+\end{verbatim}
+
+\textbf{I need to touch up the style of verbatim a bit}
+
+In this example, the main function simulates a login, the user is asked to enter a username and password, these are checked against each other, the user id is fetched and if \verb!userid! is still 0, they are kicked out as they have failed to log in.
+The problem arises from the implementation of \verb!gets! (a simplified version taken from Apple's libc - the original version printed a warning notifying the user that \verb!gets! is unsafe).
+
+The variable \verb!s! is set to point to the first byte of \verb!buf!, and for each character read in through \verb!getchar! that isn't a newline or end-of-file, the memory location pointed to by \verb!s! is set to that character and \verb!s! is incremented.
+The problem here is that there is no bounds checking performed on \verb!s!.
+
+The attack occurs as follows:
+
+\begin{itemize}
+\item The attacker provides a password that is longer than 16 characters.
+\item \verb!gets! is called, with \verb!pass! being passed in as the argument.
+\item The for loop continues until a newline in countered, in this case continuing to write past the memory allocated for \verb!pass!.
+\item \verb!userid! is positioned in memory after the end of \verb!pass!, so when \verb!gets! writes past the end of \verb!pass!, it overwrites the value of \verb!userid!.
+\item \verb!userid!, which was originally set to zero, and assumed by the programmer to be unchanged unless the password and username match, has been checked to a non-zero value.
+\item The attacker is given a valid \verb!userid!, and can even set the userid to be whatever they want to be by varying the 17th character of the input password.
+\end{itemize}
+
+\subsection{Heartbleed}
+
+A more topical example is the Heartbleed vulnerability found in the OpenSSL library - an open source implementation of the SSL and TLS protocols.
+The vulnerability, found in April 2014 is the opposite of a buffer overflow.
+Where, in a buffer overflow the attacker can write past the allocated memory to overwrite other values, the heartbleed bug allows the attacker to read past the memory allocated for the legitimate information and read values stored in RAM (such as passwords and private keys).
+
+
+\begin{verbatim}
+/* Read type and payload length first */
+hbtype = *p++;
+n2s(p, payload);
+pl = p;
+...
+unsigned char *buffer, *bp;
+int r;
+
+buffer = OPENSSL_malloc(1 + 2 + payload + padding);
+bp = buffer;
+...
+/* Enter response type, length and copy payload */
+*bp++ = TLS1_HB_RESPONSE;
+s2n(payload, bp);
+memcpy(bp, pl, payload);
+\end{verbatim}
+
+The variable \verb!p! points to a \verb!ssl3_record_st!, the incoming message.
+The first byte of the message is read (the type of the record) and is stored in \verb!bhtype!, and then the \verb!n2s! macro takes two bytes from \verb!p! and stores them in the variable \verb!payload!, which is designed to contain the length of the message.
+Finally, \verb!pl! is set to contain the rest of the received message.
+Note that the received message is received from a potentially untrusted source.
+
+A buffer is created and has \verb!1 + 2 + payload + padding! allocated for it.
+
+The response message is created in \verb!bp! and its first byte (its record type) being set to \verb!TLS1_HB_RESPONSE!, and with the macro \verb!s2n! copying two bytes from \verb!payload! into \verb!bp!.
+Finally, \verb!memcpy! is called, which copies \verb!payload! bytes of \verb!pl! into \verb!bp!.
+This was originally intended to copy the rest of the heartbeat message back into the response but is the line that introduces the vulnerability.
+
+The bug comes into play when the variable \verb!payload!, originally extracted from the adversary originating message specifies a size bigger than the rest of the package.
+\verb!memcpy! will copy past the end of the legitimate data stored in \verb!pl! and start copying bytes into \verb!bp! of other variables and essentially whatever happens to be sitting in RAM nearby \verb!pl! at the time.
+Finally \verb!bp! is sent back to the adversary.
+
 
 \section{Spatial and Temporal Pointer Safety}
 
