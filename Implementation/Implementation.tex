@@ -221,6 +221,39 @@ This can lead to memory access violations.
 
 \section{The Bounds Check Function}
 
+Two bounds check functions can be used, one in practice and one for debugging to allow greater analysis of the program.
+
+The first bounds check function is equivalent to the following code:
+
+\begin{verbatim}
+void BoundsCheck(void *value, void *base, void *bound){
+    if(value == NULL){
+        printf("Null Pointer Dereference");
+        return;
+    } else if(base == NULL){
+        printf("No Bounds Set");
+        return;
+    } else if(value < base || value >= bound){
+        printf("Out of Bounds Pointer Dereference");
+        return;
+    }
+}
+\end{verbatim}
+
+This bounds check function allows differentiation between the cases of a null pointer dereference and an out of bounds dereference and additionally allows the programmer to analyse their program at runtime to determine how many pointer dereferences cannot be checked due to lack of bounds information - for example for pointers that are returned from externally defined functions.
+
+The optimized bounds and non-debug bounds check function is as follows:
+
+\begin{verbatim}
+void BoundsCheck(void *value, void *base, void *bound){
+    if((base != NULL) & ((value < base) | (value >= bound)))
+        OnError();
+}
+\end{verbatim}
+
+\verb!OnError! is a function provided by the programmer.
+This optimized version is designed to be inlined and to provide as few jumps as possible (to prevent pipeline stalls).
+
 \section{Lookup Table - Softbound}
 
 For comparison between a fat pointer and meta-data approaches, the SoftBound system was implemented.
