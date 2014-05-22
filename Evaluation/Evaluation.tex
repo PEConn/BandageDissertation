@@ -73,15 +73,32 @@ For this benchmark, bounds checks were disabled.
 
 This benchmark was created to highlight the difference between the fat pointer and the lookup table approach, since with SoftBound no table lookup occurs for local variables.
 A linked chain is created and then followed.
-
-\textbf{Initial Results Here}
-
 These tests were repeated with a linked lists of different lengths to investigate how each approach scales with the number of pointers that it needs to keep track of.
 
 \input{Evaluation/LinkedListScale.tikz}
 
+Figure \ref{fig:LinkedListScaling} shows the results.
+The first and most obvious result is that, now that the pointers are stored on the heap and therefore table lookups are required for pointer bounds the table lookup approaches are slower than the fat pointer approach.
+
+The hash table performs the worst with a \verb!32x! runtime increase at the largest list size.
+This is not surprising considering that each lookup requires a look through each bucket for the matching element.
+The interesting result is that the runtime seems to increase linearly with the list size, implying a close to $O(1)$ overhead for hashtable lookup.
+
+With the longest linked list length, the MemTable takes five times as long as with no bounds checking and three times longer than bandage.
+The MemTable lookup consists of pointer arithmetic and an access to the \verb!mmap!ed area, whereas a fat pointer lookup consists of a \verb!GEP! to the object.
+A potential reason the MemTable approach takes longer than fat pointers is that an iteration for the fat pointer contains a load which fetches both the next pointer value and its bound at the same time, and they are store contiguously in memory.
+An iteration with MemTables consists of a lookup to find the next pointer, and then a lookup in the table to find the bounds for that pointer, requiring two lookups to two areas of memory that are likely very far apart.
+
+However, since the linked list was allocated in order, each element is likely arranged sequentially in memory.
+Therefore, since the MemTable uses the pointer's address in memory as the index to that pointer's information, the bounds information associated with each linked list item will also be arranged sequentially in memory, and quite close together, giving very good spatial locality for the caches to take advantage of.
+
+A final cause of the slowdown could be that since the table lookup functions are compiled separately and linked with the code that uses them it prevents them from being inlined, resulting in more jumping around.
+ linear
+
 \section{Olden Benchmarks}
 
+\subsection{Bisort}
+\subsection{Perimeter}
 \subsection{Treeadd}
 
 The treeadd benchmark constructs a binary tree where each node contains a value in addition to two children (all values are set to 1).
@@ -95,7 +112,33 @@ Under Bandage, the tree construction stage, dominated by memory allocations took
 % 1060893 395186 1456079
 % Unoptimized bounds checking
 
-\subsection{Bisort}
+
+\subsection{Tsp}
+
+\subsection{Other Benchmarks}
+
+Due to the complex nature of the transformation (especially the fat pointer transformation), some of the olden benchmarks are not transformed correctly.
+
+\subsubsection{Type Coercion}
+
+One of reasons that the benchmarks fail to run is Type Coercion.
+In some circumstances, the LLVM IR produced by clang coerces the types of parameters to functions.
+For example, the \verb!em3d! benchmark contains the following function:
+
+\begin{verbatim}
+typedef struct node_t{
+    double value;
+} node_t;
+
+typedef struct graph_t{
+    node_t *e;
+    node_t *h;
+} graph_t;
+
+void print_graph(graph_t graph){...}
+\end{verbatim}
+
+Instead of the struct being passed to the function as a whole struct, it is split into its two members and the function in IR actually takes two \verb!node_t *!s as its parameters, which are then put into a anonymous type of \verb!{node_t *, node_t *}! which is finally bitcast into a \verb!graph_t!.
 
 \section{Correctness}
 
