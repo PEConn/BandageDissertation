@@ -97,8 +97,8 @@ A final cause of the slowdown could be that since the table lookup functions are
 
 \section{Olden Benchmarks}
 
-\subsection{Bisort}
-\subsection{Perimeter}
+The olden suite of benchmarks are designed to be very pointer operation heavy.
+
 \subsection{Treeadd}
 
 The treeadd benchmark constructs a binary tree where each node contains a value in addition to two children (all values are set to 1).
@@ -112,8 +112,25 @@ Under Bandage, the tree construction stage, dominated by memory allocations took
 % 1060893 395186 1456079
 % Unoptimized bounds checking
 
+\subsection{Bisort}
 
+The bisort benchmark constructs a binary tree with each node containing a random value.
+The tree is then sorted by performing a binary merge at each node, working up to the root node.
+
+Under Bandage, tree construction displayed little overhead with a \verb!3%! slowdown, though the sorting caused a larger overhead of \verb!165%!, resulting in an overall runtime increase of \verb!83%!.
+
+\subsection{Mst}
+\subsection{Perimeter}
+\verb!-8%!
+\verb!23%!
+\verb!-3%!
+\subsection{Power}
 \subsection{Tsp}
+
+The tsp benchmark constructs a 2d tree of nodes and proceeds to solve the travelling salesman problem.
+For nodes close together, it uses the closest pointer heuristic.
+
+Under Bandage, tree construction introduced no overhead but application of the travelling salesman problem increased runtime by \verb!103%!.
 
 \subsection{Other Benchmarks}
 
@@ -142,6 +159,62 @@ Instead of the struct being passed to the function as a whole struct, it is spli
 
 \section{Correctness}
 
+\subsection{Buffer Overflow Attack}
+
+\begin{verbatim}
+int main(void){
+    char pass[16];
+    int userid = 0;
+
+    gets(pass);
+    ...
+}
+\end{verbatim}
+
+\begin{verbatim}
+// In stdio
+char *gets(char *buf)
+{
+    int c;
+    char *s;
+    for (s = buf; (c = getchar()) != '\n';)
+        if (c == EOF)
+            if (s == buf)
+                return (NULL);
+            else
+                break;
+        else
+            *s++ = c;
+    *s = 0;
+    return (buf);
+}
+\end{verbatim}
+Bandage is capable of stopping the buffer overflow described in the Background section.
+The \verb!pass! array has its bounds information contained in its type in LLVM IR (as \verb![16xi8]!).
+As it is passed into \verb!gets! as a parameter it is converted into a function whose value is set to the address of the array.
+During the assignment, the bounds of the fat pointer are set correctly.
+Then as \verb!s! is set to \verb!buf!, the bounds information is transferred to \verb!s! and consulted on every dereference of \verb!s!.
+Therefore once the value of \verb!s! exceeds its base and bounds (that of the original variable \verb!pass!) an error is triggered.
+
+\subsection{Heartbleed}
+
+\begin{verbatim}
+/* Read type and payload length first */
+hbtype = *p++;
+n2s(p, payload);
+pl = p;
+...
+unsigned char *buffer, *bp;
+int r;
+
+buffer = OPENSSL_malloc(1 + 2 + payload + padding);
+bp = buffer;
+...
+/* Enter response type, length and copy payload */
+*bp++ = TLS1_HB_RESPONSE;
+s2n(payload, bp);
+memcpy(bp, pl, payload);
+\end{verbatim}
 
 
 %\section{Misc}
