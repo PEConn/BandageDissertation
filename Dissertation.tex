@@ -71,7 +71,7 @@ In addition, this is the first time CCured-like analysis has been used to augmen
 \pagenumbering{arabic} 
 \setcounter{page}{1} 
 
-Pointer errors account for many bugs in C, ranging from simple off-by-one errors where the programmer writes one past the end of the array to malicous buffer overflow attacks, where an attacker inputs data designed to manipulate the code into writing past the end of the array and over some other important data.
+Pointer errors account for many bugs in C, ranging from simple off-by-one errors where the programmer writes one past the end of the array to malicious buffer overflow attacks, where an attacker inputs data designed to manipulate the code into writing past the end of the array and over some other important data.
 
 C allows many practices that make such errors easy to make, for example a pointer can legally point one past the end of an array (although dereferencing it is undefined).
 Also, in practice, a pointer frequently starts pointing to its valid area of memory and then is modified (through pointer arithmetic) to point to an invalid area of memory.
@@ -88,6 +88,40 @@ With a metadata approach, the address of the pointer is used as the key to a loo
 In addition, many pointers are not modified using pointer arithmetic during the life of the program and a blanket strategy of creating a bounds check on every pointer dereference can introduce a large, unnecessary overhead.
 To this end, a method of identifying pointers that do not require bounds checking, CCured-like analysis was implemented and the savings this optimization cause are investigated.
 
+\begin{figure}
+\centering
+\tikzstyle{block} = [rectangle, draw, 
+text width=5em, text centered, rounded corners, minimum height=2em]
+\tikzstyle{lib} = [rectangle, draw, fill=green!40, 
+text width=5em, text centered, rounded corners, minimum height=2em]
+\tikzstyle{comp} = [rectangle, draw, fill=blue!40, 
+text width=5em, text centered, rounded corners, minimum height=2em]
+\tikzstyle{line} = [draw, -latex']
+\begin{tikzpicture}[node distance = 3cm, auto]
+	\node [block] 						(code) 		{Source Code};
+	\node [comp, right of=code] 		(ccured) 	{CCured-like Analysis};
+	\node [comp, above of=ccured] 		(bandage) 	{Bandage};
+	\node [block, right of=bandage] 	(exe1) 		{Bounds Checked Binary};
+	\node [comp, below of=ccured] 		(softbound) {SoftBound};
+	\node [block, right of=softbound] 	(exe2) 		{Bounds Checked Binary};
+	\node [lib, below right of=exe2]	(hash)		{HashTable};
+	\node [lib, above right of=exe2]	(mem)		{MemTable};
+	\path[line] (code) -- (ccured);
+	\path[line] (ccured) -- (bandage);
+	\path[line] (ccured) -- (softbound);
+	\path[line] (code) -- (bandage);
+	\path[line] (code) -- (softbound);
+	\path[line] (bandage) -- (exe1);
+	\path[line] (softbound) -- (exe2);
+	\path[line] (mem) -- (exe2);
+	\path[line] (hash) -- (exe2);
+\end{tikzpicture}
+\caption{Overview of Implemented Components}
+\label{fig:Components}
+\end{figure}
+
+Figure \ref{fig:Components} summarizes the components of the implementation.
+Blue boxes represent LLVM passes and green boxes represent created object files that can be linked with the executable to provide different implementations of the same functionality.
 
 \textbf{Pointers from library functions}
 
