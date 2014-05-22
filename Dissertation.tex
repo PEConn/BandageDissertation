@@ -44,9 +44,14 @@
 {\Huge \bf Abstract}
 \vspace{24pt} 
 
-This dissertation implememts systems for providing spatial pointer safety in C.
-Both a fat pointer approach, where the additional information is stored with the pointers and a meta-data approach where the information is stored seperately and associated with the pointers are implemented and compared.
-Finally the performance benefit gained by using a CCured-like analysis to detect and remove needless bounds checks is investigated.
+An LLVM implementation of fat pointers, pointers that store information additional to their value was created and evaluated as an optimisation pass for C.
+Likewise, a meta-data approach, associating information separate from pointers with pointers was implemented with multiple back-ends for the storage of metadata.
+Both methods were designed to provide spatial pointer safety.
+Finally, a CCured-like analysis was implemented as an optimization in a further LLVM pass to identify and prevent unnessecary bounds checks.
+
+The completeness of each approach was tested and the relative advantages and disadvantages were weighted.
+The performance penalties caused by both approaches were evaluated and the speedup given by the CCured-analysis was investigated.
+In addition, this is the first time CCured-like analysis has been used to augment a fat pointer approach to bounds checking.
 
 \newpage
 \vspace*{\fill}
