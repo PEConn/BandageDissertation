@@ -42,6 +42,36 @@ Alternate methods are used for dealing with pointers pointing past the end of ar
 This approach does not prevent out of bounds accesses as the size associated with the pointer (the allocated bounds) is larger than the size of the object (the object bounds), so it is still possible to exceed the bounds of the object.
 However it prevents dangerous overflows, since a pointer cannot access memory of an object that it was not created for.
 
+\section{Other Systems}
+
+\textit{Efficient Detection of all pointer and array access errors} \cite{austin1994efficient} uses a more complex fat pointer representation than just \{value, base, bound\} to extend their coverage beyond just spatial safety to include temporal safety.
+
+The first additional field is the storage class enumeration, ranging over the values of Heap, Global and Local.
+This allows detection of erroneous deallocations (such as attempting to free a local varaible).
+The second field, a capability is more interesting.
+On memory allocation, a unique capability is created and stored in a capability table.
+The capability is deallocated once the memory is freed (either through free or returning from a function).
+The presence of the capability referenced by a fat pointer is checked on pointer dereference.
+This was found to produce an overhead of between 130-450\%.
+
+\textit{Cyclone} \cite{jim2002cyclone} takes a different route from source code analysis, being a dialect of C that allows the programmer to program in a C-like language that prevents buffer overflows, memory managements and format string attacks.
+It does this by imposing restrictions on C, such as limiting pointer arithmetic, disallowing unsafe casts and forbidding jumps into scopes.
+Additionally it provides extensions such as a never-null pointer type and fat pointer for arithmetic.
+
+While some of these extensions are automatic, the programmer must make use of most of them explicitly, so existing programs must be converted to Cyclone.
+When tested, Cylcone produce overheads of between 0 and 250\% while the translation required between 0 and 46\% of the lines of code to be changed.
+
+On the other end of the spectrum are tools that don't even need access to the source code of the program.
+
+\textit{Body Armour for Binaries} \cite{slowinska2012body} targets a very specific type of attack - buffer overflows into non-control data, without requiring the source code or symbol table of the program.
+It essentially does this by reverse engineering the binary to extract information about the data structures that need protecting and rewriting it to contain checks on pointer dereference.
+
+\textit{Heapmon} \cite{shetty2005heapmon} deploys a helper thread that stores two bits for every word on the heap to keep track of whether or not the area is allocated and whether or not the area is initialized.
+Memory leaks are therefore detected by looking for areas of allocated memory left over after the program exits.
+
+To detect overflows, memory allocation is modified to leave unallocated areas between objects, so writing to that area will trigger an error.
+Heapmon can only deal with memory on the heap (not the stack or globals) and works at a word granularity, so errors of less than 3 bytes may not be detected.
+
 \section{SoftBound}
 
 One of the two main systems implemented in this dissertation is SoftBound \cite{nagarakatte2009softbound}.
