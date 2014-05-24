@@ -157,6 +157,60 @@ void print_graph(graph_t graph){...}
 
 Instead of the struct being passed to the function as a whole struct, it is split into its two members and the function in IR actually takes two \verb!node_t *!s as its parameters, which are then put into a anonymous type of \verb!{node_t *, node_t *}! which is finally bitcast into a \verb!graph_t!.
 
+\subsection{No Checks}
+
+Bandage was modified to not insert bounds or null checks on pointer dereference, and the benchmarks were run again.
+This provided a measurement of the overhead introduced by using fat pointers (and therefore dealing with the extra loads, pointer wrapping and stripping and cache overhead) and by propegating the bounds information.
+The overheads introduced here allow evaluation of the bounds checking strategy separate from those overheads and also provides a theoretical lower bound on what an optimization to the checking strategy can achieve.
+
+\begin{table}
+\centering
+\begin{tabular}{|l|r|r|}
+\hline \textbf{Olden Benchmark} & \textbf{O0 Overhead} & \textbf{O3 Overhead}\\
+\hline Bisort       &   7.50\%   &   3.44\% \\
+\hline Mst          & xxxxxx\%   & xxxxxx\% \\
+\hline Perimeter    & -18.62\%   & -43.49\% \\
+\hline Power        & xxxxxx\%   & xxxxxx\% \\
+\hline Treeadd      &  28.75\%   &  17.11\% \\
+\hline Tsp          &   7.29\%   &  28.57\% \\
+\hline
+\end{tabular}
+\label{tab:NoChecks}
+\caption{Runtime overhead on olden benchmarks when no bounds or null checks are inserted}
+\end{table}
+
+The runtime overheads are shown in Table \ref{tab:NoChecks}, for comparison when the code was run without optimization and when the code was run with O3.
+It is gratifying to see that in most of the cases, O3 optimization reduces the gap between uninstrumented and instrumented code.
+
+\subsubsection{Tsp interfering with Optimization}
+
+Looking at the runtime breakdown of the Tsp benchmark gives us the timings in Table \ref{tab:TspNoChecks}.
+It can be seen that large discrepancy in optimization speedups arises during the set of O1 optimizations.
+
+\begin{table}
+\centering
+\begin{tabular}{|l|r|r|}
+\hline  \textbf{Optimization Level}  &   \textbf{Raw} &   \textbf{Bandage} \\
+\hline  O1  &   20.51\%  &   -2.33\%  \\
+\hline  O2  &   26.92\%  &   13.95\%  \\
+\hline  O3  &   26.92\%  &   13.95\%  \\
+\hline
+\end{tabular}
+\label{tab:TspNoChecks}
+\caption{Speedup relative to O0 optimization for raw and bandage transformed Tsp benchmark.}
+\end{table}
+
+In order to investigate this further, O1 optimization was repeated multiple times on the uninstrumented code, each time with a specific optimization disabled, to determine which was responsible for the \verb!20%! speedup.
+Each of the resulting binaries displayed speedups of \verb!17%! or more, suggesting that no single optimization was responsible for the speedup.
+It was found however, when the \verb!instcombine! optimization was omitted, the speedup for the unoptimized binary was \verb!25%!, indicating that it actually slows the resulting program.
+
+The same process was repeated on the instrumented IR.
+It was found that with each optimization pass specified manually, a speedup of \verb!25\%! is achieved - similar to that of the raw binary, but when specified through the O1 flag, the speedup is negligable.
+
+However, this process also identified the O1 optimizations that were the most responsible for was responsible for the speedup.
+Without the \verb!instcombine! or the \verb!sroa! optimizations, the speedup dropped to \verb!1%!.
+Additionally, the absence of the \verb!early-cse! optimization caused the speedup to drop to \verb!17%!.
+
 \section{Correctness}
 
 \subsection{Buffer Overflow Attack}
