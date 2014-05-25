@@ -176,8 +176,8 @@ The overheads introduced here allow evaluation of the bounds checking strategy s
 \hline Tsp          &   7.29\%   &  28.57\% \\
 \hline
 \end{tabular}
-\label{tab:NoChecks}
 \caption{Runtime overhead on olden benchmarks when no bounds or null checks are inserted}
+\label{tab:NoChecks}
 \end{table}
 
 The runtime overheads are shown in Table \ref{tab:NoChecks}, for comparison when the code was run without optimization and when the code was run with O3.
@@ -197,8 +197,8 @@ It can be seen that large discrepancy in optimization speedups arises during the
 \hline  O3  &   26.92\%  &   13.95\%  \\
 \hline
 \end{tabular}
-\label{tab:TspNoChecks}
 \caption{Speedup relative to O0 optimization for raw and bandage transformed Tsp benchmark.}
+\label{tab:TspNoChecks}
 \end{table}
 
 In order to investigate this further, O1 optimization was repeated multiple times on the uninstrumented code, each time with a specific optimization disabled, to determine which was responsible for the \verb!20%! speedup.
@@ -211,6 +211,10 @@ It was found that with each optimization pass specified manually, a speedup of \
 However, this process also identified the O1 optimizations that were the most responsible for was responsible for the speedup.
 Without the \verb!instcombine! or the \verb!sroa! optimizations, the speedup dropped to \verb!1%!.
 Additionally, the absence of the \verb!early-cse! optimization caused the speedup to drop to \verb!17%!.
+
+\subsection{Interactions with Optimizations passes}
+
+It was seen in the previous section that there were three O1 optimizations that produced significant changes in the runtime of the instrumented code.
 
 \section{Correctness}
 
