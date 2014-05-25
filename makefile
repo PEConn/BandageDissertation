@@ -16,10 +16,10 @@ Dissertation.ps: Dissertation.dvi
 	$(DVIPS) -Pdownload35 -ta4 Dissertation.dvi
 
 Dissertation.dvi: ${TEXS} ${TIKZS} Bibliography.bib
-	$(LATEX) Dissertation
+	$(LATEX) -shell-escape Dissertation
 	$(BIBTEX) Dissertation
-	$(LATEX) Dissertation
-	$(LATEX) Dissertation
+	$(LATEX) -shell-escape Dissertation
+	$(LATEX) -shell-escape Dissertation
 
 clean:
 	$(RM) -f Dissertation.pdf Dissertation.ps Dissertation.dvi 

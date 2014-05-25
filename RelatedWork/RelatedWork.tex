@@ -96,12 +96,12 @@ There are three operations that generate constraints in a C program, these are a
 
 Arithmetic is the simplest one of these, and says that if a pointer has arithmetic performed on it, it cannot be \textit{SAFE}.
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 int *a;
 int *b;
 
 a = b + 4;
-\end{verbatim}
+\end{minted}
 
 Two constraints are generated here, one from the arithmetic and one from the assignment.
 The arithmetic constraint marks the pointer that has arithmetic performed on it, so in this case, $Q(b) != SAFE$.

@@ -5,13 +5,13 @@ A selection of tailored micro-benchmarks were created to investigate the effects
 
 \subsubsection{Safe Pointer Dereference}
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 // Setup
 int x;
 int y=malloc(sizeof(int));
 // Benchmarked Code
 x=*y;
-\end{verbatim}
+\end{minted}
 
 As \verb!y! is recognised as a safe pointer, no bounds checking will be carried out, however at the moment the variable is not marked as \verb!not-NULL!, therefore a null check is performed.
 This null check incurs an overhead of \verb!4.6%!.
@@ -21,14 +21,14 @@ This benchmark was run without the null check, and the load was found to incur a
 
 \subsubsection{Unsafe Pointer Dereference}
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 // Setup
 int x;
 int y=malloc(sizeof(int));
 x=y[0];
 // Benchmark Code
 x=*y;
-\end{verbatim}
+\end{minted}
 
 By using array addressing on the pointer, the CCured analysis detects \verb!y! as a pointer that has arithmetic done on it, and is therefore not \textit{SAFE}.
 Therefore the pointer dereference will contain the full bounds check, which was found to incur an overhead of \verb!52%!.
@@ -38,11 +38,12 @@ This could be simplified.
 
 \subsubsection{Pointer Allocation}
 
-\begin{verbatim}
+
+\begin{minted}[frame=single]{c}
 // Setup
 void Fun1(){}
 void Fun2(){int *a,*b,...,*j;}
-\end{verbatim}
+\end{minted}
 
 Many calls were made to \verb!Fun1! and to \verb!Fun2! and the difference in execution time was measured.
 This benchmark needed to be done this way because memory used by an allocation is not free until the scope it is allocated in is left, therefore if the allocation were performed in a loop, the stack would run out of space.
@@ -51,12 +52,12 @@ This was found to produce no measurable difference.
 
 \subsubsection{Pointer Assignment}
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 // Setup
 int *a,*b;
 // Benchmark Code
 a=b;
-\end{verbatim}
+\end{minted}
 
 There is no bounds checking on this code as no pointers are dereferenced, its purpose is to observe the overhead of copying three pointers instead of one.
 
@@ -142,7 +143,7 @@ One of reasons that the benchmarks fail to run is Type Coercion.
 In some circumstances, the LLVM IR produced by clang coerces the types of parameters to functions.
 For example, the \verb!em3d! benchmark contains the following function:
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 typedef struct node_t{
     double value;
 } node_t;
@@ -153,7 +154,7 @@ typedef struct graph_t{
 } graph_t;
 
 void print_graph(graph_t graph){...}
-\end{verbatim}
+\end{minted}
 
 Instead of the struct being passed to the function as a whole struct, it is split into its two members and the function in IR actually takes two \verb!node_t *!s as its parameters, which are then put into a anonymous type of \verb!{node_t *, node_t *}! which is finally bitcast into a \verb!graph_t!.
 
@@ -215,7 +216,7 @@ Additionally, the absence of the \verb!early-cse! optimization caused the speedu
 
 \subsection{Buffer Overflow Attack}
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 int main(void){
     char pass[16];
     int userid = 0;
@@ -223,9 +224,9 @@ int main(void){
     gets(pass);
     ...
 }
-\end{verbatim}
+\end{minted}
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 // In stdio
 char *gets(char *buf)
 {
@@ -242,7 +243,7 @@ char *gets(char *buf)
     *s = 0;
     return (buf);
 }
-\end{verbatim}
+\end{minted}
 Bandage is capable of stopping the buffer overflow described in the Background section.
 The \verb!pass! array has its bounds information contained in its type in LLVM IR (as \verb![16xi8]!).
 As it is passed into \verb!gets! as a parameter it is converted into a function whose value is set to the address of the array.
@@ -252,7 +253,7 @@ Therefore once the value of \verb!s! exceeds its base and bounds (that of the or
 
 \subsection{Heartbleed}
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 /* Read type and payload length first */
 hbtype = *p++;
 n2s(p, payload);
@@ -268,7 +269,7 @@ bp = buffer;
 *bp++ = TLS1_HB_RESPONSE;
 s2n(payload, bp);
 memcpy(bp, pl, payload);
-\end{verbatim}
+\end{minted}
 
 
 %\section{Misc}

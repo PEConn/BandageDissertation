@@ -7,7 +7,7 @@ Though this is very powerful, it can also be very dangerous and numerous securit
 
 In a buffer overflow attack, the attacker makes use of the memory layout of the program to overwrite a variable that they should not have access to.
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 #include <stdio.h>
 #include <string.h>
 
@@ -31,9 +31,9 @@ int main(void){
 
     ...
 }
-\end{verbatim}
+\end{minted}
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 // In stdio
 char *gets(char *buf)
 {
@@ -51,9 +51,7 @@ char *gets(char *buf)
     *s = 0;
     return (buf);
 }
-\end{verbatim}
-
-\textbf{I need to touch up the style of verbatim a bit}
+\end{minted}
 
 In this example, the main function simulates a login, the user is asked to enter a username and password, these are checked against each other, the user id is fetched and if \verb!userid! is still 0, they are kicked out as they have failed to log in.
 The problem arises from the implementation of \verb!gets! (a simplified version taken from Apple's libc - the original version printed a warning notifying the user that \verb!gets! is unsafe).
@@ -79,7 +77,7 @@ The vulnerability, found in April 2014 is the opposite of a buffer overflow.
 Where, in a buffer overflow the attacker can write past the allocated memory to overwrite other values, the heartbleed bug allows the attacker to read past the memory allocated for the legitimate information and read values stored in RAM (such as passwords and private keys).
 
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 /* Read type and payload length first */
 hbtype = *p++;
 n2s(p, payload);
@@ -95,7 +93,7 @@ bp = buffer;
 *bp++ = TLS1_HB_RESPONSE;
 s2n(payload, bp);
 memcpy(bp, pl, payload);
-\end{verbatim}
+\end{minted}
 
 The variable \verb!p! points to a \verb!ssl3_record_st!, the incoming message.
 The first byte of the message is read (the type of the record) and is stored in \verb!bhtype!, and then the \verb!n2s! macro takes two bytes from \verb!p! and stores them in the variable \verb!payload!, which is designed to contain the length of the message.
@@ -121,7 +119,7 @@ Temporal safety ensures that the pointer points to a valid area of memory at the
 The methods explored in this dissertation provide spatial safety, but not complete temporal safety.
 Consider the following code:
 
-\begin{verbatim}
+\begin{minted}[frame=single]{c}
 int *a=malloc(sizeof(int));
 int *b=a;
 
@@ -129,7 +127,7 @@ free(a);
 
 printf("%d\n", *a);
 printf("%d\n", *b);
-\end{verbatim}
+\end{minted}
 
 The methods implemented in this dissertation will catch the memory access error introduced by the first \verb!printf! statement, but not by the second.
 This is because the information about pointer validity is associated with the pointer, and so when \verb!a! is freed the information associated with it indicates that it does not point to valid memory, but the information associated with \verb!b! is not likewise updated.`
@@ -149,37 +147,46 @@ This means that in the declaration \verb!int *a! will create in LLVM IR the vari
 The \verb!store! instruction takes a piece of data and a pointer and stores the data in the area pointed to.
 The following C code turns into the following LLVM code:
 
-\begin{verbatim}
+\begin{minipage}[t]{0.5\linewidth}
+\begin{minted}[frame=single]{c}
 int a;
 int b;
-a = b;
-\end{verbatim}
 
-\begin{verbatim}
+a = b;
+\end{minted}
+\end{minipage}
+\begin{minipage}[t]{0.5\linewidth}
+\begin{minted}[frame=single]{llvm}
 %a = alloca i32
 %b = alloca i32
 %1 = load i32* %b
 store i32 %1, i32 %a
-\end{verbatim}
+\end{minted}
+\end{minipage}
 
 Here, spaces on the stack for the variables \verb!a! and \verb!b! are created, and pointers to these spaces are stored in the variables \verb!%a! and \verb!%b! respectively.
 The value stored in the area pointed to by \verb!%b! is loaded, and then stored in the area pointed to by the variable \verb!%a!.
 
-\begin{verbatim}
+\begin{minipage}[t]{0.5\linewidth}
+\begin{minted}[frame=single]{c}
 int *c;
 int d;
 ...
-*c = d;
-\end{verbatim}
 
-\begin{verbatim}
+
+*c = d;
+\end{minted}
+\end{minipage}
+\begin{minipage}[t]{0.5\linewidth}
+\begin{minted}[frame=single]{llvm}
 %c = alloca i32*
 %d = alloca i32
 ...
 %1 = load i32** %c
 %2 = load i32* %d
 store i32 %2, i32* %c
-\end{verbatim}
+\end{minted}
+\end{minipage}
 
 Here, in the C code we are assigning the value held in \verb!d! to the memory location pointed to by \verb!c! (assume that \verb!c! is set to a valid memory address during the \verb!...! otherwise the code results in undefined behaviour).
 
@@ -191,14 +198,25 @@ Finally the memory pointed to by \verb!%1! is set to the value contained in \ver
 The last interesting instruction for working with pointers is the GEP instruction.
 GEP stands for 'Get Element Pointer', and is used for performing pointer arithmetic (it itself does not peform and memory access).
 
-\begin{verbatim}
-int *a, *b, *d;
+\begin{minipage}[t]{0.3\linewidth}
+\begin{minted}[frame=single]{c}
+int *a;
+int *b;
 int c;
-a = b + 3;
-c = d[3];
-\end{verbatim}
+int *d;
 
-\begin{verbatim}
+
+
+a = b + 3;
+
+
+
+
+c = d[3];
+\end{minted}
+\end{minipage}
+\begin{minipage}[t]{0.7\linewidth}
+\begin{minted}[frame=single]{llvm}
 %a = alloca i32*
 %b = alloca i32*
 %c = alloca i32
@@ -212,7 +230,8 @@ store i32* %2, %a
 %4 = getelementptr %3, i32 0, i32 3
 %5 = load i32* %4
 store i32 %5, %c
-\end{verbatim}
+\end{minted}
+\end{minipage}
 
 \verb!%1! contains the value of \verb!b! and the getelementptr is used for the pointer arithmetic.
 The variable \verb!%1! is of type \verb!i32*!.
