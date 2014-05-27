@@ -1,3 +1,55 @@
+\section{Overview}
+
+\begin{figure}[h]
+    \begin{minipage}[t]{0.40\linewidth}
+        \centering
+        \textbf{Fat Pointers}
+        \begin{tabular}{|c|c|}
+            \hline \textbf{Address} & \textbf{Value} \\
+            \hline 0x00000080 & 0x00000100 \\
+            \hline 0x00000088 & 0x00000100 \\
+            \hline 0x00000090 & 0x00000118 \\
+            \hline .......... & .......... \\
+            \hline 0x00000100 & 0x00004000 \\
+            \hline 0x00000108 & 0x00004000 \\
+            \hline 0x00000110 & 0x00004004 \\
+            \hline .......... & .......... \\
+            \hline 0x00004000 & 0x00000005 \\
+            \hline
+        \end{tabular}
+    \end{minipage}
+    \hspace{0.2cm}
+    \begin{minipage}[t]{0.50\linewidth}
+        \centering
+        \textbf{Lookup Table}
+        \begin{tabular}{|c|c|}
+            \hline \textbf{Address} & \textbf{Value} \\
+            \hline 0x00000080 & 0x00000100 \\
+            \hline .......... & .......... \\
+            \hline 0x00000100 & 0x00004000 \\
+            \hline .......... & .......... \\
+            \hline 0x00004000 & 0x00000005 \\
+            \hline
+        \end{tabular}
+        \newline
+        \vspace{0.2cm}
+        \newline
+        \begin{tabular}{|c|c|c|}
+            \hline \textbf{Address} & \textbf{Base} & \textbf{Bound} \\
+            \hline 0x00000080 & 0x00000100 & 0x00000118 \\
+            \hline 0x00000100 & 0x00004000 & 0x00004004 \\
+            \hline
+        \end{tabular}
+    \end{minipage}
+    \caption{Graphical Comparison of Fat Pointer and Lookup Table Methods}
+    \label{fig:FatPointerAndTable}
+\end{figure}
+
+This section cover the implementation of the three core sections of Bandage: the fat pointer implementation, the SoftBound-like implementation and the CCured-like analysis.
+The two different implementation methods for tracking pointer bounds are contrasted in Figure \ref{fig:FatPointerAndTable}.
+With fat pointers the bounds information associated with a pointer is stored alongside it in memory, while with the lookup table, the bounds information is stored separately and indexed by the address of the pointer.
+
+
 \section{Fat Pointers}
 While a pointer contains an address to an area in memory, a fat pointer contains an address and additional information.
 As implemented in Bandage, fat pointers contain three pointers, a value, a base and a bound.
