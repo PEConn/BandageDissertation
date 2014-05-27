@@ -178,7 +178,7 @@ Bandage is conservative and only causes undefined behaviour for dereferences to 
 During this chapter, types will be referred to in LLVM notation.
 An \verb!i32! stands for a 32-bit integer, a \verb!i8! stands for an 8 bit integer (or char) and a pointer to a type is denoted by the type followed by an asterisk.
 
-In LLVM IR, space on the stack is set aside with the \verb!alloca! instruction, which returns a pointer to the allocated memory.
+In LLVM IR, space on the stack is set aside with the \verb!alloca! instruction, which returns a pointer to the allocated memory \ref{llvmLangRef}.
 Therefore the line \verb!int a! in C is converted into \verb!%a = alloca i32! in LLVM IR.
 It should be noted that the variable \verb!%a! is actually the type of \verb!i32*!.
 This means that in the declaration \verb!int *a! will create in LLVM IR the variable \verb!%a! of type \verb!i32**!.
@@ -235,7 +235,7 @@ The value stored in the memory pointed to by \verb!%d! is loaded into \verb!%2! 
 Finally the memory pointed to by \verb!%1! is set to the value contained in \verb!%2!.
 
 The last interesting instruction for working with pointers is the GEP instruction.
-GEP stands for 'Get Element Pointer', and is used for performing pointer arithmetic (it itself does not peform and memory access).
+GEP stands for 'Get Element Pointer', and is used for performing pointer arithmetic (it itself does not peform and memory access) \ref{llvmGEP}.
 
 \begin{minipage}[t]{0.3\linewidth}
 \begin{minted}[frame=single]{c}
