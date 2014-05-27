@@ -134,6 +134,45 @@ This is because the information about pointer validity is associated with the po
 
 Therefore the techniques implemented in this dissertation do not provide complete pointer safety, but provide an additional layer of robustness.
 
+\section{Allowances in the C standard}
+
+The C99 standard defines loose rules for pointer related operations, which allow the transformations performed by Bandage to result in a program that adhers to it \cite{c99all}.
+
+By omission in section \verb!6.2.6.1! of the standard, the representation of the pointer type in unspecified.
+This allows pointers to be represented by more informative data structures that just the address they point to, for example a fat pointer representation.
+
+The C standard places the following notable restrictions on pointer types (unless otherwise stated, these are contained in section \verb!6.3.2.3!).
+
+\begin{itemize}
+\item A pointer to any object type may be converted to a pointer to void and back again; the result shall compare equal to the original pointer.
+\item An integer constant expression with the value 0, or such an expression cast to type \verb!void *!, is called a null pointer constant.  
+If a null pointer constant is converted to a pointer type, the resulting pointer, called a null pointer, is guaranteed to compare unequal to a pointer to any object or function.
+Conversion of a null pointer to another pointer type yields a null pointer of that type.  
+Any two null pointers shall compare equal.
+\item An integer may be converted to any pointer type.
+Except as previously specified, the result is implementation-defined, might not be correctly aligned, might not point to an entity of the referenced type, and might be a trap representation.
+\end{itemize}
+
+These restrictions place \verb!void! pointers as the lowest common denominator, and state that NULL must be equivalent for all pointer types.
+
+However, it also provides a number of allowances that pointer safety schemes can use:
+
+\begin{itemize}
+\item The value of a pointer becomes indeterminate when the object it points to (or just past) reaches the end of its lifetime (\verb!6.2.4.2!).
+\item When an expression that has integer type is added to or subtracted from a pointer, the result has the type of the pointer operand.
+...
+If both the pointer operand and the result point to elements of the same array object, or one past the last element of the array object, the evaluation shall not produce an overflow; otherwise, the behavior is undefined.
+If the result points one past the last element of the array object, it shall not be used as the operand of a unary \verb!*! operator that is evaluated. (\verb!6.5.6!)
+\item If an invalid value has been assigned to a pointer, the behaviour of the \verb!*! pointer is undefined.
+Among the invalid values for dereferencing a pointer by the unary \verb!*! operator are a null pointer, an address inappropriately aligned for the type of object pointed to, and the address of an object after the end of its lifetime. (\verb!6.5.3.2!).
+\end{itemize}
+
+The first point would allow creation of a simple temporal pointer safety scheme where the pointer parameter passed to the \verb!free! function is set to null after the function returns, while adhering to the C standard.
+
+Bandage makes use of the latter points, allowing undefined behaviour in the case of pointers pointing past the ends of arrays (or objects) being dereferenced.
+However in practice, it is common for programmers to manipulate pointers such that they point out of the bounds of arrays (2 past the end, or before the start), and this is expected to be defined behaviour.
+Bandage is conservative and only causes undefined behaviour for dereferences to these pointers.
+
 \section{Working with Pointers in LLVM IR}
 
 During this chapter, types will be referred to in LLVM notation.
