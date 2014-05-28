@@ -271,42 +271,7 @@ This leads to the undesirable situation where the source program allocates an ar
 The LLVM IR will contain a constant integer (indistinguishable from other all other constant integers) representing the size of the original struct, though the actual struct used will be the fat pointer version, which requires more memory.
 This can lead to memory access violations.
 
-\section{The Bounds Check Function}
-
-Two bounds check functions can be used, one in practice and one for debugging to allow greater analysis of the program.
-
-The first bounds check function is equivalent to the following code:
-
-\begin{minted}[frame=single]{c}
-void BoundsCheck(void *value, void *base, void *bound){
-    if(value == NULL){
-        printf("Null Pointer Dereference");
-        return;
-    } else if(base == NULL){
-        printf("No Bounds Set");
-        return;
-    } else if(value < base || value >= bound){
-        printf("Out of Bounds Pointer Dereference");
-        return;
-    }
-}
-\end{minted}
-
-This bounds check function allows differentiation between the cases of a null pointer dereference and an out of bounds dereference and additionally allows the programmer to analyse their program at runtime to determine how many pointer dereferences cannot be checked due to lack of bounds information - for example for pointers that are returned from externally defined functions.
-
-The optimized bounds and non-debug bounds check function is as follows:
-
-\begin{minted}[frame=single]{c}
-void BoundsCheck(void *value, void *base, void *bound){
-    if((base != NULL) & ((value < base) | (value >= bound)))
-        OnError();
-}
-\end{minted}
-
-\verb!OnError! is a function provided by the programmer.
-This optimized version is designed to be inlined and to provide as few jumps as possible (to prevent pipeline stalls).
-
-\section{Lookup Table - Softbound}
+\section{Softbound-like Lookup Table}
 
 For comparison between a fat pointer and meta-data approaches, the SoftBound system was implemented.
 SoftBound was chosen because, apart from differences in where the bounds information is stored, it is very similar to the fat pointer approach as it associates each pointer with a base and bound.
@@ -502,6 +467,41 @@ We only need the bounds of the immediate pointer since the bounds of anything th
 
 In terms of implementation, the duplicated functions returned the 'pointer return' object and code was added at each call site to extract the value, base and bound and to associate the value with the base and bound.
 
+\section{The Bounds Check Function}
+
+Two bounds check functions can be used, one in practice and one for debugging to allow greater analysis of the program.
+
+The first bounds check function is equivalent to the following code:
+
+\begin{minted}[frame=single]{c}
+void BoundsCheck(void *value, void *base, void *bound){
+    if(value == NULL){
+        printf("Null Pointer Dereference");
+        return;
+    } else if(base == NULL){
+        printf("No Bounds Set");
+        return;
+    } else if(value < base || value >= bound){
+        printf("Out of Bounds Pointer Dereference");
+        return;
+    }
+}
+\end{minted}
+
+This bounds check function allows differentiation between the cases of a null pointer dereference and an out of bounds dereference and additionally allows the programmer to analyse their program at runtime to determine how many pointer dereferences cannot be checked due to lack of bounds information - for example for pointers that are returned from externally defined functions.
+
+The optimized bounds and non-debug bounds check function is as follows:
+
+\begin{minted}[frame=single]{c}
+void BoundsCheck(void *value, void *base, void *bound){
+    if((base != NULL) & ((value < base) | (value >= bound)))
+        OnError();
+}
+\end{minted}
+
+\verb!OnError! is a function provided by the programmer.
+This optimized version is designed to be inlined and to provide as few jumps as possible (to prevent pipeline stalls).
+
 \section{Setting pointer bounds}
 
 The two most common actions that cause a change in pointer bounds are detailed in the functions section above - \verb!malloc! and \verb!free!.
@@ -555,6 +555,27 @@ Finally, pointers are frequently set to be equal to the null constant.
 In this case, the bounds information is not changed, only the value.
 The reason for this being that a null pointer is flagged by bounds checking before the bounds information is touched and therefore two additional assignments would add unessecary overhead.
 
+\section{Binary Compatibility}
+There are three different entities that Bandage must pay attention to in regards of binary compatibility.
+These are functions, structs and external variables.
+
+For functions, Bandage follows a rule of ``if I can see its definition, I am allowed to modify it''.
+For any function definition it creates a transformed duplicate while retaining the original.
+This allows a transformed library to be used with untransformed code as the original functions remain.
+It would be a useful extra step to modify the untransformed version of the function to be a wrapper to the transformed version, inserting null bounds and allowing it to be internally bounds checked, however the current method means that the performance overheads of bounds checking are not imposed on programs that were not created with bounds checking in mind.
+
+For any functions that Bandage cannot see the definition of, it leaves untouched, unless that function is named in the function file explained earlier.
+
+Structs are a bit different, since they are fully defined in every source file they are used in.
+To determine which structs it is allowed to modify, Bandage looks at the functions again.
+If a struct is used in a function that is defined, but not declared (taking into account the functions in the function file), it is counted as external and not transformed.
+
+This can lead to a case where the same struct is used internally to a project and also in the libraries included in that project but the struct never crosses the internal/ external boundary.
+In this case, two versions of the struct will exist in the final binary, the transformed one used internally and the raw one used externally.
+
+Finally, extern variables must be taken into account.
+External variables are transformed in a deterministic manner, allowing the linker to link the transformed versions.
+Bandage's fat pointer implementation does not allow the mixing of transformed and untransformed external variables, but its lookup table implementation does, however such a mix is probably indicative of bad coding practices.
 \section{CCured Analysis}
 
 In the CCured paper, pointers are classified into three qualifiers: \textit{SAFE}, \textit{SEQ} and \textit{DYN}.
