@@ -96,11 +96,11 @@ Therefore, since the MemTable uses the pointer's address in memory as the index 
 A final cause of the slowdown could be that since the table lookup functions are compiled separately and linked with the code that uses them it prevents them from being inlined, resulting in more jumping around.
  linear
 
-\section{Olden Benchmarks}
+\subsection{Olden Benchmarks}
 
 The olden suite of benchmarks are designed to be very pointer operation heavy.
 
-\subsection{Treeadd}
+\subsubsection{Treeadd}
 
 The treeadd benchmark constructs a binary tree where each node contains a value in addition to two children (all values are set to 1).
 A depth-first search is then performed, accumulating the value at each node.
@@ -113,31 +113,31 @@ Under Bandage, the tree construction stage, dominated by memory allocations took
 % 1060893 395186 1456079
 % Unoptimized bounds checking
 
-\subsection{Bisort}
+\subsubsection{Bisort}
 
 The bisort benchmark constructs a binary tree with each node containing a random value.
 The tree is then sorted by performing a binary merge at each node, working up to the root node.
 
 Under Bandage, tree construction displayed little overhead with a \verb!3%! slowdown, though the sorting caused a larger overhead of \verb!165%!, resulting in an overall runtime increase of \verb!83%!.
 
-\subsection{Mst}
-\subsection{Perimeter}
+\subsubsection{Mst}
+\subsubsection{Perimeter}
 \verb!-8%!
 \verb!23%!
 \verb!-3%!
-\subsection{Power}
-\subsection{Tsp}
+\subsubsection{Power}
+\subsubsection{Tsp}
 
 The tsp benchmark constructs a 2d tree of nodes and proceeds to solve the travelling salesman problem.
 For nodes close together, it uses the closest pointer heuristic.
 
 Under Bandage, tree construction introduced no overhead but application of the travelling salesman problem increased runtime by \verb!103%!.
 
-\subsection{Other Benchmarks}
+\subsubsection{Other Benchmarks}
 
 Due to the complex nature of the transformation (especially the fat pointer transformation), some of the olden benchmarks are not transformed correctly.
 
-\subsubsection{Type Coercion}
+%\subsubsection{Type Coercion}
 
 One of reasons that the benchmarks fail to run is Type Coercion.
 In some circumstances, the LLVM IR produced by clang coerces the types of parameters to functions.
@@ -212,11 +212,11 @@ However, this process also identified the O1 optimizations that were the most re
 Without the \verb!instcombine! or the \verb!sroa! optimizations, the speedup dropped to \verb!1%!.
 Additionally, the absence of the \verb!early-cse! optimization caused the speedup to drop to \verb!17%!.
 
-\subsection{Interactions with Optimizations passes}
+\section{Interactions with Optimizations passes}
 
 It was seen in the previous section that there were three O1 optimizations that produced significant changes in the runtime of the instrumented code.
 
-\section{Correctness}
+\section{Security}
 
 \subsection{Buffer Overflow Attack}
 
@@ -291,3 +291,21 @@ memcpy(bp, pl, payload);
 %These SAFE pointers can either be implemented as a fat pointer but without bounds checking or kept as a raw pointer.
 
 %Implementing SAFE pointers as fat pointers but without the bounds checking brings consistency but keeps the overhead of fat pointers, which isn't used when SAFE pointers are kept as raw pointers.
+\subsection{Returning a Local Variable}
+
+\begin{minted}[frame=single]{c}
+int *ReturnLocalVariable(){
+    int x = 5;
+    return &x;
+}
+int main(){
+    int *a = ReturnLocalVariable();
+    *a = 12;
+    return 0;
+}
+\end{minted}
+
+Bandage, a system for enforcing spatial pointer safety cannot detect what is wrong with this example of a temporal pointer violation.
+The expression \verb!&x! is turned into a fat pointer, with value and base pointing to the address of \verb!x! and the bound pointing past its end.
+After return, it is still a perfectly valid fat pointer as the value is within the base and bound.
+Therefore on dereference, no error is triggered.
