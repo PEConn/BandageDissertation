@@ -164,6 +164,14 @@ Everything is wrapped up in the conclusion and a few example source programs are
 
 \chapter{Summary and Conclusions} 
 
+The novel idea of separation of analysis and implementation was developed and implemented paving the way for a reusable ecosystem of components to enforce pointer safety and to identify where it needs to be enforced.
+
+The two prevalent methods of carrying spatial pointer information and tracking its safety were implemented and their effects on commonly used compiler optimizations was investigated.
+\textbf{It was found that...}
+
+By placing the existing pointer safety systems in a common evaluation framework they can be compared and contrasted, allowing the users to make a choice of which system to use or allowing researchers to identify gaps in the design space for future work.
+This evaluation also identified a core trade-off in this area, that of compatibility vs completeness, with Cyclone taking its place at the completeness end of the spectrum and Heapmon taking its place at the compatibility end.
+
 \section{Software Engineering Practices}
 
 The use of a strong test suite was invaluable during the implementation, and the only thing I would change if I did this again would be making it even stronger.
@@ -173,9 +181,6 @@ This is in large part due to Bandage changing the representation of pointers - m
 In the SoftBound implementation however, the implementation could be broken down into small pieces (eg providing bounds for local variables, then passing them through functions), and at each stage the source programs would compile, though the checking may not be complete.
 
 Although this does provide a nice guarantee with Bandage that if the program compiles, bounds checking is more likely to be thorough, it creates an all-or-nothing situation in the presence of cases that haven't been implemented where Bandage either breaks the code or performs well, while Softbound can provide bounds checking for that that has been implemented.
-
-Initially, only the Bandage system was to be implemented.
-Therefore keeping the Bandage transformation pass separate from the CCured-like analysis pass proved beneficial as it could be easily reused to provide the same information to the SoftBound transformation.
 
 Unexpected setbacks were discovered in trying to run the Softbound transformation on the Raspberry Pi, as both uthash and memtables required modification to run on 32-bit systems.
 
