@@ -346,6 +346,8 @@ The following factors are taken into account when assessing a pointer safety sys
 \newcommand*\rot{\rotatebox{90}}
 \newcommand{\xmark}{\ding{55}}
 
+The evaluation of the systems with regards to safety offered is shown in Table \ref{fig:Safety}.
+
 \begin{table}
 \centering
 \begin{tabular}{l|cccccccccc}
@@ -357,15 +359,21 @@ Dangerous accesses              &\checkmark&\checkmark&\checkmark&\checkmark&\ch
 Checks all variables            &&\checkmark&&&&\checkmark&\checkmark&\checkmark&&\\
 Checks most variables           &\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark\\
 \hline
-Access to free'd memory         &*&&&&\checkmark&\checkmark&&\checkmark&\checkmark&\checkmark\\
-Access to dead stack memory     &&&&&&\checkmark&\checkmark&&&\checkmark\\
+Access to free'd memory         &*&&&&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\\
+Access to dead stack memory     &&&&&\checkmark&\checkmark&&&\checkmark&\\
 \end{tabular}
 \caption{Safety guarantees for evaluated pointer safety systems}
 \label{fig:Safety}
 \end{table}
 
 Bandage fails to provide complete spatial safety as it takes pointers without bounds information from external code and cannot bounds check for them.
-Simply setting pointers to null after being passed to \verb!free! provides protected against a very small set of temporal safety bugs.
+Simply setting pointers to null after being passed to \verb!free! provides protected against a very small set of temporal safety bugs, though Bandage is not granted a full check in that section because copies of that \verb!free!'d pointer are not also updated.
+
+The ability to check all variables is present in two groups of systems.
+The first group, containing CCured and Cyclone require the entire program, including libraries to be recompiled (mentioned in the next section of the evaluation) in order to gain bounds information on all variables.
+The second group, containing Heapmon and Address Sanitizer do this by instrumenting \verb!malloc! and \verb!free!, which will be used by external code but without the object granularity - neither of these systems can detect a pointer access to the wrong referent.
+
+It is quite obvious from the table that spatial safety is often the primary concern, probably due to its wider application in vulnerabilities than temporal safety which more frequently causes benign bugs.
 
 \begin{table}
 \centering
@@ -377,16 +385,25 @@ Library recompilation       &&\xmark&&\xmark&&\xmark&&&&\xmark\\
 Code must be standardized   &&&&&\xmark&&&&&\\
 Code rewrite                &&&&&&\xmark&&&&\\
 \end{tabular}
-\caption{Safety guarantees for evaluated pointer safety systems}
+\caption{Compatibilty requirements for evaluated pointer safety systems}
 \label{fig:Compatibility}
 \end{table}
+
+Table \ref{fig:Compatibilty} covers the compatibility requirements for the evaluated systems.
+The presence of a requirement is marked by a cross in this table instead of a tick as in the last table as requirements are negative.
+It can be seen that the systems with the most ticks in Table \ref{fig:Safety} are also likely to have the most crosses in Table \ref{fig:Compatibility}, a trend explored in the next section.
+
+Finally, extra considerations and the runtime overheads imposed by each tool are listed in Table \ref{fig:Others} for completeness.
+Together these three graphs provide a full picture of the relative strengths and weaknesses of these tools, allowing programmers to make an informed decision over which is the best for the task at hand.
+A programmer with a non-real time legacy system could start by choosing Heapmon and accept the runtime overhead as an acceptable price for the lack of compilation time overhead.
+Alternatively a programmer looking to write a secure system from scratch would be well advised to use Cyclone (provided the garbage collector isn't an issue).
 
 \begin{table}
 \centering
 \begin{tabular}{l|r|r}
 System & Runtime Overhead & Extra Requirements \\
 \hline
-Bandage             &&\\
+Bandage             &Up to 250\%&\\
 CCured              &Up to 250\%&\\
 SoftBound           &Up to 350\%&\\
 HardBound           &Up to 25\%&Hardware\\
@@ -401,3 +418,61 @@ MPX                 &&Hardware\\
 \label{fig:Others}
 \end{table}
 
+\subsection{The completeness vs compatibility tradeoff}
+
+It can be seen in the previous section that the system providing the greatest completeness, Cyclone is also the one with the lowest compatibility as the entire program must be rewritten in Cyclone's dialect of C.
+Similarly, the system presenting the greatest compatibility, Heapmon has the most incomplete system, being unable to detect accesses to the wrong referent or even accesses just past the end of a valid area.
+
+To this end, Figure \ref{fig:Spectrum} was created to display the design space of current systems.
+Based on the evaluation criteria enumerated above, each system was given a numerical score between zero and one as a quantitative measure of its compatibility and its completeness.
+The numerical values aren't meant to be definitive, they were assigned to allow comparison between the systems.
+
+In the bottom right is the raw, untransformed \verb!C! language without any pointer safety system applied to it.
+Following to the left there is a large jump in completeness with the Heapmon system, which adds basic but still useful pointer safety checks.
+Further to the left are systems that require recompilation of the source code but not of included libraries.
+The Jones \& Kelly system comes next, with slightly less compatibility due to its strick adherence to the C standard.
+CCured, HardBound and MPX require the full system to be recompiled with binaries, and finally Cyclone provides the strongest pointer safety at the cost of rewriting the source code.
+
+\begin{figure}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\textwidth,
+    xmin=0,
+    xmax=1,
+    ymin=0,
+    ymax=1,
+    xlabel={Compatibility},
+    ylabel={Completeness},
+    ]
+\addplot[
+    only marks,
+    mark=*,
+    mark options={fill=white},
+    visualization depends on=\thisrow{alignment} \as \alignment,
+    nodes near coords, % Place nodes near each coordinate
+    point meta=explicit symbolic, % The meta data used in the nodes is not explicitly provided and not numeric
+    every node near coord/.style={anchor=\alignment}, % Align each coordinate at the anchor 40 degrees clockwise from the right edge
+    ] table [% Provide data as a table
+     meta index=2 % the meta data is found in the third column
+     ] {
+        x       y       label       alignment
+        1       0       C           -40
+        0.2     0.8     Cyclone     -40
+        0.7     0.7     Bandage     -130
+        0.4     0.8     CCured      -40
+        0.7     0.6     SoftBound   -180
+        0.4     0.6     HardBound   0
+        0.6     0.6     J\&K        -40
+        0.9     0.4     Heapmon     90
+        0.7     0.55    AddrSan     180
+        0.7     0.5     Baggy       90
+        0.4     0.5     MPX         0
+    };
+\end{axis}
+\end{tikzpicture}
+\caption{The Completeness vs Compatibility Tradeoff in Pointer Safety Systems}
+\label{fig:Spectrum}
+\end{figure}
+
+It should be noted that this graph disregards the runtime overhead of the systems.
