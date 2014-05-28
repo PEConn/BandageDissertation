@@ -3,7 +3,7 @@
 One of the primary advantages of C is that it gives the programmer a model that is very close to hardware, allowing access to essentially arbitrary areas of memory.
 Though this is very powerful, it can also be very dangerous and numerous security vulnerabilities have arisen from programmers not putting careful checks on their memory operations.
 
-\subsection{Buffer Overflow Attack}
+\subsection{Example: Buffer Overflow Attack}
 
 In a buffer overflow attack, the attacker makes use of the memory layout of the program to overwrite a variable that they should not have access to.
 
@@ -70,7 +70,7 @@ The attack occurs as follows:
 \item The attacker is given a valid \verb!userid!, and can even set the userid to be whatever they want to be by varying the 17th character of the input password.
 \end{itemize}
 
-\subsection{Heartbleed}
+\subsection{Example: Heartbleed}
 
 A more topical example is the Heartbleed vulnerability found in the OpenSSL library - an open source implementation of the SSL and TLS protocols.
 The vulnerability, found in April 2014 is the opposite of a buffer overflow.
@@ -111,10 +111,30 @@ The bug comes into play when the variable \verb!payload!, originally extracted f
 Finally \verb!bp! is sent back to the adversary.
 
 
-\section{Spatial and Temporal Pointer Safety}
+\subsection{Example: Returning a Pointer to the Stack}
+This final example shows a nasty bug, one that potentially could be used for a security vulnerability, but since the code normally does not function correctly it hasn't been a major exploit.
+This bug stems from the programmers misunderstanding of the lifetime of variables on the stack.
+
+\begin{minted}[frame=single]{c}
+Triangle *CreateTriangle(Point *a, Point *b, Point *c){
+    Triangle T;
+    T.a = a;
+	T.b = b;
+    T.c = c;
+    return &T;
+}
+\end{minted}
+
+The triangle \verb!T! is created as a local variable, on the stack and modified.
+A reference to it is then returned from the function.
+However, when the function exits, the local variables lifespan ends, resulting in the returned pointer pointing to deallocated space that will probably be overwritten on the next function call.
+
+\subsection{Spatial and Temporal Pointer Safety}
 
 There are two types of safety that can be provided when dealing with pointers - temporal and spatial.
 Temporal safety ensures that the pointer points to a valid area of memory at the time that it is dereferenced, while spatial safety just ensures that the pointer points to a valid area of memory at a certain time.
+In the examples provided above, the first two were violations of spatial pointer safety - in the first data was written beyond the end of the object it was meant to write to and in the second, data was read beyond the end of the object it was meant to write to.
+The last example was a violation of temporal pointer safety - a pointer is returned an object that is past the end of its lifetime.
 
 The methods explored in this dissertation provide spatial safety, but not complete temporal safety.
 Consider the following code:
