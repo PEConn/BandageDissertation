@@ -98,7 +98,7 @@ A final cause of the slowdown could be that since the table lookup functions are
 
 \subsection{Olden Benchmarks}
 
-The olden suite of benchmarks are designed to be very pointer operation heavy.
+The olden suite of benchmarks are designed to be very pointer operation heavy \cite{olden}.
 
 \subsubsection{Treeadd}
 
@@ -309,3 +309,95 @@ Bandage, a system for enforcing spatial pointer safety cannot detect what is wro
 The expression \verb!&x! is turned into a fat pointer, with value and base pointing to the address of \verb!x! and the bound pointing past its end.
 After return, it is still a perfectly valid fat pointer as the value is within the base and bound.
 Therefore on dereference, no error is triggered.
+\section{Pointer Safety System Evaluation Framework}
+
+The following factors are taken into account when assessing a pointer safety system:
+
+\begin{itemize}
+    \item \textbf{Spatial Safety Offered}
+    \begin{itemize}
+        \item Prevents access to unallocated memory.
+        \item Prevents access to incorrect referent object.
+        \item Prevents most access to unallocated memory or incorrect referent object.
+        \item Is able to check all memory accesses that require checking.
+        \item Checks most memory accesses that require checking.
+    \end{itemize}
+    \item \textbf{Temporal Safety Offered}
+    \begin{itemize}
+        \item Prevents access to free'd memory.
+        \item Prevents access to deallocated stack memory.
+    \end{itemize}
+    \item \textbf{Binary Compatibility}, the extent to which a program must be modified to run with the system. This is split into the following categories:
+    \begin{itemize}
+        \item The code must be recompiled.
+        \item All libraries must be recompiled.
+        \item Code must be written exactly to standard.
+        \item Code must be rewritten.
+    \end{itemize}
+    \item \textbf{Runtime Overhead}
+    \item \textbf{Extra requirements}
+    \begin{itemize}
+        \item Hardware primitives.
+        \item Additional threads.
+        \item Garbage collector.
+    \end{itemize}
+\end{itemize}
+
+\newcommand*\rot{\rotatebox{90}}
+\newcommand{\xmark}{\ding{55}}
+
+\begin{table}
+\centering
+\begin{tabular}{l|cccccccccc}
+Safety Guarantee & \rot{Bandage} & \rot{CCured} & \rot{SoftBound} & \rot{HardBound} & \rot{Jones \& Kelly} & \rot{Cyclone} & \rot{Heapmon} & \rot{Address San.} & \rot{Baggy Bounds} & \rot{MPX} \\
+\hline
+Access to invalid memory        &\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&&\checkmark&&\checkmark \\
+Access to incorrect object      &\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&&&\checkmark&\\
+Dangerous accesses              &\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark\\
+Checks all variables            &&\checkmark&&&&\checkmark&\checkmark&\checkmark&&\\
+Checks most variables           &\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark\\
+\hline
+Access to free'd memory         &*&&&&\checkmark&\checkmark&&\checkmark&\checkmark&\checkmark\\
+Access to dead stack memory     &&&&&&\checkmark&\checkmark&&&\checkmark\\
+\end{tabular}
+\caption{Safety guarantees for evaluated pointer safety systems}
+\label{fig:Safety}
+\end{table}
+
+Bandage fails to provide complete spatial safety as it takes pointers without bounds information from external code and cannot bounds check for them.
+Simply setting pointers to null after being passed to \verb!free! provides protected against a very small set of temporal safety bugs.
+
+\begin{table}
+\centering
+\begin{tabular}{l|cccccccccc}
+Compatibility requirements & \rot{Bandage} & \rot{CCured} & \rot{SoftBound} & \rot{HardBound} & \rot{Jones \& Kelly} & \rot{Cyclone} & \rot{Heapmon} & \rot{Address San.} & \rot{Baggy Bounds} & \rot{MPX} \\
+\hline
+Code recompilation          &\xmark&\xmark&\xmark&\xmark&\xmark&\xmark&&\xmark&\xmark&\xmark\\
+Library recompilation       &&\xmark&&\xmark&&\xmark&&&&\xmark\\
+Code must be standardized   &&&&&\xmark&&&&&\\
+Code rewrite                &&&&&&\xmark&&&&\\
+\end{tabular}
+\caption{Safety guarantees for evaluated pointer safety systems}
+\label{fig:Compatibility}
+\end{table}
+
+\begin{table}
+\centering
+\begin{tabular}{l|r|r}
+System & Runtime Overhead & Extra Requirements \\
+\hline
+Bandage             &&\\
+CCured              &Up to 250\%&\\
+SoftBound           &Up to 350\%&\\
+HardBound           &Up to 25\%&Hardware\\
+Jones \& Kelly      &-&\\
+Cyclone             &Up to 250\%&Garbage Collector\\
+HeapMon             &Up to 450\%&Extra Thread\\
+Address Sanitizer   &Typically 200\%&\\
+Baggy Bounds        &Up to 230\%&\\
+MPX                 &&Hardware\\
+\end{tabular}
+\caption{Runtime and extra requirements of evaluated pointer safety systems}
+\label{fig:Others}
+\end{table}
+

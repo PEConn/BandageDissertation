@@ -26,6 +26,9 @@
 \usepackage{epstopdf}
 \usepackage{epsfig,graphicx,parskip,setspace,tabularx,xspace} 
 \usepackage{pgfplots}
+\usepackage{amssymb}
+\usepackage{rotating}
+\usepackage{pifont}
 \usepackage{tikz}
 \usepackage{amsmath}
 \usepackage{minted}
@@ -82,7 +85,8 @@ Pointer errors account for many bugs in C, ranging from simple off-by-one errors
 
 C allows many practices that make such errors easy to make, for example a pointer can legally point one past the end of an array (although dereferencing it is undefined).
 A pointer frequently starts pointing to its valid area of memory and then is modified (through pointer arithmetic) to point to an invalid area of memory.
-This pointer is modified again, bringing it back to point to the valid area and used (though used in practice, this is not allowed in the standard).
+This pointer is modified again, bringing it back to point to the valid area and used ,though used in practice, this is not allowed in the standard.
+For example, Ghostscript, a freeware PostScript interface violates the standard by issuing pointers to the \verb!-1! element of stacks \cite{ghostscript}.
 
 One method of dealing with such attacks is to keep track of data about the valid area of memory that a pointer has access to, and consult this data on pointer dereference.
 In this dissertation, the data used to determine the validity of a pointer is the address of the start of the area of allocated memory (the base) and the address one past its end (the bound).
@@ -178,7 +182,7 @@ Unexpected setbacks were discovered in trying to run the Softbound transformatio
 \appendix
 \singlespacing
 
-\bibliographystyle{unsrt} 
+\bibliographystyle{plain} 
 \bibliography{Bibliography} 
 
 \end{document}

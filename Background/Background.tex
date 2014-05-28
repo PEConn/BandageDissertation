@@ -5,7 +5,7 @@ Though this is very powerful, it can also be very dangerous and numerous securit
 
 \subsection{Example: Buffer Overflow Attack}
 
-In a buffer overflow attack, the attacker makes use of the memory layout of the program to overwrite a variable that they should not have access to.
+In a buffer overflow attack, the attacker makes use of the memory layout of the program to overwrite a variable that they should not have access to \cite{bufferOverflow}.
 
 \begin{minted}[frame=single]{c}
 #include <stdio.h>
@@ -72,10 +72,11 @@ The attack occurs as follows:
 
 \subsection{Example: Heartbleed}
 
-A more topical example is the Heartbleed vulnerability found in the OpenSSL library - an open source implementation of the SSL and TLS protocols.
+A more topical example is the Heartbleed vulnerability found in the OpenSSL library - an open source implementation of the SSL and TLS protocols \cite{heartbleedBlog}.
 The vulnerability, found in April 2014 is the opposite of a buffer overflow.
 Where, in a buffer overflow the attacker can write past the allocated memory to overwrite other values, the heartbleed bug allows the attacker to read past the memory allocated for the legitimate information and read values stored in RAM (such as passwords and private keys).
 
+The bug is contained in the following code \cite{sslSrc}:
 
 \begin{minted}[frame=single]{c}
 /* Read type and payload length first */
@@ -112,7 +113,7 @@ Finally \verb!bp! is sent back to the adversary.
 
 
 \subsection{Example: Returning a Pointer to the Stack}
-This final example shows a nasty bug, one that potentially could be used for a security vulnerability, but since the code normally does not function correctly it hasn't been a major exploit.
+This final example shows a nasty bug, one that potentially could be used for a security vulnerability, but since the code normally does not function correctly it hasn't been a major exploit \cite{returnLocal}.
 This bug stems from the programmers misunderstanding of the lifetime of variables on the stack.
 
 \begin{minted}[frame=single]{c}
