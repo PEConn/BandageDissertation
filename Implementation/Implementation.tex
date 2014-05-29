@@ -1,48 +1,62 @@
 \section{Overview}
 
+\tikzstyle{int}=[draw, fill=blue!20, minimum size=2em, text width=1.5cm]
+\tikzstyle{empty}=[draw, minimum size=2em, text width=1.5cm]
+
 \begin{figure}[h]
-    \begin{minipage}[t]{0.40\linewidth}
-        \centering
-        \textbf{Fat Pointers}
-        \begin{tabular}{|c|c|}
-            \hline \textbf{Address} & \textbf{Value} \\
-            \hline 0x00000080 & 0x00000100 \\
-            \hline 0x00000088 & 0x00000100 \\
-            \hline 0x00000090 & 0x00000118 \\
-            \hline .......... & .......... \\
-            \hline 0x00000100 & 0x00004000 \\
-            \hline 0x00000108 & 0x00004000 \\
-            \hline 0x00000110 & 0x00004004 \\
-            \hline .......... & .......... \\
-            \hline 0x00004000 & 0x00000005 \\
-            \hline
-        \end{tabular}
-    \end{minipage}
-    \hspace{0.2cm}
-    \begin{minipage}[t]{0.50\linewidth}
-        \centering
-        \textbf{Lookup Table}
-        \begin{tabular}{|c|c|}
-            \hline \textbf{Address} & \textbf{Value} \\
-            \hline 0x00000080 & 0x00000100 \\
-            \hline .......... & .......... \\
-            \hline 0x00000100 & 0x00004000 \\
-            \hline .......... & .......... \\
-            \hline 0x00004000 & 0x00000005 \\
-            \hline
-        \end{tabular}
-        \newline
-        \vspace{0.2cm}
-        \newline
-        \begin{tabular}{|c|c|c|}
-            \hline \textbf{Address} & \textbf{Base} & \textbf{Bound} \\
-            \hline 0x00000080 & 0x00000100 & 0x00000118 \\
-            \hline 0x00000100 & 0x00004000 & 0x00004004 \\
-            \hline
-        \end{tabular}
-    \end{minipage}
-    \caption{Graphical Comparison of Fat Pointer and Lookup Table Methods}
-    \label{fig:FatPointerAndTable}
+\centering
+\textbf{Fat Pointers}
+\\
+\vspace{5mm}
+\begin{tikzpicture}[node distance=2.5cm,auto,>=latex']
+    \node [int] (p1val)     {Value};
+    \node [int, below of=p1val, node distance=2em] (p1base)    {Base};
+    \node [int, below of=p1base, node distance=2em] (p1bound)   {Bound};
+    \node [empty, below of=p1bound, node distance=2em] (p1after) {...};
+    \node [int, right of=p1val, node distance= 4cm] (p2val)     {Value};
+    \node [int, below of=p2val, node distance=2em] (p2base)    {Base};
+    \node [int, below of=p2base, node distance=2em] (p2bound)   {Bound};
+    \node [empty, below of=p2bound, node distance=2em] (p2after) {...};
+    \node [int, right of=p2val, node distance= 4cm] (value)     {Value};
+    \node [empty, below of=value, node distance=2em] (valueafter) {...};
+    \draw[->] (p1val) edge[out=0, in=180] node {} (p2val);
+    \draw[->] (p1base) edge[out=0, in=180] node {} (p2val);
+    \draw[->] (p1bound) edge[out=0, in=180] node {} (p2after);
+    \draw[->] (p2val) edge[out=0, in=180] node {} (value);
+    \draw[->] (p2base) edge[out=0, in=180] node {} (value);
+    \draw[->] (p2bound) edge[out=0, in=180] node {} (valueafter);
+\end{tikzpicture}
+\\
+\vspace{5mm}
+\textbf{Lookup Table}
+\\
+\vspace{5mm}
+\begin{tikzpicture}[node distance=2.5cm,auto,>=latex']
+    \node [int] (p1val)     {Value};
+    \node [empty, below of=p1val, node distance=2em] (p1after) {...};
+    \node [int, right of=p1val, node distance= 4cm] (p2val)     {Value};
+    \node [empty, below of=p2val, node distance=2em] (p2after) {...};
+    \node [int, right of=p2val, node distance= 4cm] (value)     {Value};
+    \node [empty, below of=value, node distance=2em] (valueafter) {...};
+    \draw[->] (p1val) edge node {} (p2val);
+    \draw[->] (p2val) edge node {} (value);
+
+    \node [int, above of=p1val, node distance=1.75cm] (p1base)    {Base};
+    \node [int, left of=p1base, node distance=1.75cm] (p1addr)    {Address};
+    \node [int, right of=p1base, node distance=1.7cm] (p1bound)  {Bound};
+    \draw[->] (p1addr) edge[out=-90, in=180] node {} (p1val);
+    \draw[->] (p1base) edge[out=-50, in=180]  node {} (p2val);
+    \draw[->] (p1bound) edge[out=-90, in=180]  node {} (p2after);
+
+    \node [int, above of=p2val, node distance=1.75cm] (p2addr)    {Address};
+    \node [int, right of=p2addr, node distance=1.7cm] (p2base)    {Base};
+    \node [int, right of=p2base, node distance=1.7cm] (p2bound)  {Bound};
+    \draw[->] (p2addr) edge node {} (p2val);
+    \draw[->] (p2base) edge[out=-90, in=180] node {} (value);
+    \draw[->] (p2bound) edge[out=0, in=0] node {} (valueafter);
+\end{tikzpicture}
+\caption{Graphical Comparison of Fat Pointer and Lookup Table Methods}
+\label{fig:FatPointerAndTable}
 \end{figure}
 
 This section cover the implementation of the three core sections of Bandage: the fat pointer implementation, the SoftBound-like implementation and the CCured-like analysis.
