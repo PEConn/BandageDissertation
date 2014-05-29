@@ -1,4 +1,5 @@
 Since C is such a popular language and pointer based bugs are both widespread and highly exploitable, there have been many efforts to introduce pointer safety to C, and many different approaches.
+In this section, a number of these other pointer safety systems will be summarized and used to highlight the common gaps this work hopes to address.
 
 LLVM's address sanitizer \cite{llvmAddrSan, llvmAddrSanAlgo} can be considered state of the art and  is capable of detecting out-of-bounds accesses on the heap, stack and for globals, use-after-free, and some use-after return bugs.
 
@@ -12,7 +13,10 @@ However, address sanitizer provides no mapping between the valid areas of memory
 It would be possible for pointer arithmetic to be used to to still cause a buffer overflow into another variables' valid area of memory, though it must jump over the poisoned area.
 
 Hardbound criticizes prior work, saying that it either introduces high overhead, isn't complete or introduces incompatibility \cite{devietti2008hardbound}.
-In contrast it proposes to shift the bounds checking to hardware, and akin to SoftBound stores the bounds information separately from the pointer.
+Proposes hardware checks instead - the hardware bounded pointer, which is essentially a fat pointer, but the metadata is dealt with by hardware transparently to the programmer.
+Registers are upgraded to triples of \verb!{value, base, bound}!, where \verb!base! and \verb!bound! are 0 for non-pointers.
+Conclusion states lower overheads and better binary compatibility, with 100\% precision and recall on tests.
+A suggestion was made to use HardBound for the CCured \verb!SEQ! and \verb!WILD! pointers, but not on \verb!SAFE! ones.
 
 \section{The Jones and Kelly System}
 
@@ -47,7 +51,7 @@ However it prevents dangerous overflows, since a pointer cannot access memory of
 \textit{Efficient Detection of all pointer and array access errors} \cite{austin1994efficient} uses a more complex fat pointer representation than just \{value, base, bound\} to extend their coverage beyond just spatial safety to include temporal safety.
 
 The first additional field is the storage class enumeration, ranging over the values of Heap, Global and Local.
-This allows detection of erroneous deallocations (such as attempting to free a local varaible).
+This allows detection of erroneous deallocations (such as attempting to free a local variable).
 The second field, a capability is more interesting.
 On memory allocation, a unique capability is created and stored in a capability table.
 The capability is deallocated once the memory is freed (either through free or returning from a function).
@@ -71,6 +75,10 @@ Memory leaks are therefore detected by looking for areas of allocated memory lef
 
 To detect overflows, memory allocation is modified to leave unallocated areas between objects, so writing to that area will trigger an error.
 Heapmon can only deal with memory on the heap (not the stack or globals) and works at a word granularity, so errors of less than 3 bytes may not be detected.
+
+\textit{Intel MPX (Memory Protection Extensions)} \cite{mpx,intelMpxSpec} are a set of extensions to the x86 instruction set designed to check pointer references that may be exploited for security exploits.
+They require compiler, runtime library and operating system support.
+By embedding these checks in hardware, much of the overhead of pointer checking is reduced.
 
 \section{SoftBound}
 
