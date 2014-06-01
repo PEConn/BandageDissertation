@@ -503,16 +503,16 @@ The evaluation of the systems with regards to safety offered is shown in Table \
 \begin{tabular}{l|cccccccccc}
 Safety Guarantee & \rot{Bandage} & \rot{CCured} & \rot{SoftBound} & \rot{HardBound} & \rot{Jones \& Kelly} & \rot{Cyclone} & \rot{Heapmon} & \rot{Address San.} & \rot{Baggy Bounds} & \rot{MPX} \\
 \hline
-Access to invalid memory        &\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&&\checkmark&&\checkmark \\
-Access to incorrect object      &\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&&&\checkmark&\\
-Dangerous accesses              &\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark\\
-Checks all variables            &&\checkmark&&&&\checkmark&\checkmark&\checkmark&&\\
-Checks most variables           &\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark\\
+Access to invalid memory        &&&&&&&\xmark&&\xmark& \\
+Access to incorrect object      &&&&&&&\xmark&\xmark&&\xmark\\
+Dangerous accesses              &&&&&&&&&&\\
+Checks all variables            &\xmark&&\xmark&\xmark&\xmark&&&&\xmark&\xmark\\
+%Checks most variables           &\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark\\
 \hline
-Access to free'd memory         &*&&&&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\\
-Access to dead stack memory     &&&&&\checkmark&\checkmark&&&\checkmark&\\
+Access to free'd memory         &*&\xmark&\xmark&\xmark&&&&&&\xmark\\
+Access to dead stack memory     &\xmark&\xmark&\xmark&\xmark&&&\xmark&\xmark&&\xmark\\
 \end{tabular}
-\caption{Safety guarantees for evaluated pointer safety systems}
+\caption{Safety guarantees for evaluated pointer safety systems. A cross indicates the guarantee is \textbf{not} provided.}
 \label{fig:Safety}
 \end{table}
 
@@ -535,7 +535,7 @@ Library recompilation       &&\xmark&&\xmark&&\xmark&&&&\xmark\\
 Code must be standardized   &&&&&\xmark&&&&&\\
 Code rewrite                &&&&&&\xmark&&&&\\
 \end{tabular}
-\caption{Compatibilty requirements for evaluated pointer safety systems}
+\caption{Compatibilty requirements for evaluated pointer safety systems.}
 \label{fig:Compatibility}
 \end{table}
 
