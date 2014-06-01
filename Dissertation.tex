@@ -49,19 +49,21 @@
 {\Huge \bf Abstract}
 \vspace{24pt} 
 
-Current research into the area of providing pointer safety to C programs suffers from a few systematic flaws.
+C is one of the most widely used languages, favoured for its low cost abstractions and the control it gives programmers over memory.
+This control frequently leads to bugs, especially while using pointers, causing unpredictable errors and security vulnerabilities.
+Therefore much research has been done to providing pointer safety to C programs, however current work suffers from a few systematic flaws.
 First, the analysis performed by such systems is inextricably linked to the transformation required to provide pointer safety.
 Second, they are studied in isolation and not in combination with commonly used compiler optimizations or as part of a widespread compiler tool chain.
 Finally, the majority of these approaches sacrifice binary compatibility, requiring the entire libraries a program uses to be recompiled as well or even the program to be rewritten.
 
 This dissertation aims to provide solutions to these problems.
-It uses an approach where the analysis and transformation are kept separate, with a single analysis working with two drastically different transformations.
-It investigates the effects of the two prevailing methods of ensuring pointer safety (fat pointers and lookup tables) on commonly used optimizations passes.
-It provides methods for maintaining very high binary compatibility with programs that use already compiled libraries, and evaluates the costs of doing so.
+I use an approach where the analysis and transformation are kept separate, with a single analysis able to support two drastically different transformations (fat pointers and lookup tables), giving performance overheads comparable to current work.
+I investigate the effects of these two prevailing methods of ensuring pointer safety on commonly used optimizations passes.
+Finally, I provide methods for maintaining very high binary compatibility with programs that use already compiled libraries, and evaluates the costs of doing so.
 
-Additionally, a taxonomy is created for classifying and evaluating current methods for providing pointer safety.
-It goes beyond the currently quantitative measure of performance overhead imposed by a pointer safety system and includes qualitative measures including the types of safety provided, completeness and compatibility.
-Finally an argument is made that such techniques tend to fall on a spectrum between providing 100\% safety and 100\% compatibility and places current techniques on that spectrum.
+Additionally, I create a taxonomy for classifying and evaluating current methods for providing pointer safety.
+It goes beyond the currently quantitative measure of performance overhead imposed by a pointer safety system and includes qualitative measures such as the types of safety provided, completeness and compatibility.
+Finally an argument is made that such techniques fall on a scale between providing 100\% safety and 100\% compatibility and places current work on that spectrum.
 
 \newpage
 \vspace*{\fill}
