@@ -1,11 +1,11 @@
-\section{Performance}
+\section{Transformed Code Performance}
 \subsection{Microbenchmarks}
 
 A selection of tailored micro-benchmarks were created to investigate the effects of the transformation on individual parts of code.
 
 \subsubsection{Safe Pointer Dereference}
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 // Setup
 int x;
 int y=malloc(sizeof(int));
@@ -21,7 +21,7 @@ This benchmark was run without the null check, and the load was found to incur a
 
 \subsubsection{Unsafe Pointer Dereference}
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 // Setup
 int x;
 int y=malloc(sizeof(int));
@@ -39,7 +39,7 @@ This could be simplified.
 \subsubsection{Pointer Allocation}
 
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 // Setup
 void Fun1(){}
 void Fun2(){int *a,*b,...,*j;}
@@ -52,7 +52,7 @@ This was found to produce no measurable difference.
 
 \subsubsection{Pointer Assignment}
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 // Setup
 int *a,*b;
 // Benchmark Code
@@ -62,13 +62,6 @@ a=b;
 There is no bounds checking on this code as no pointers are dereferenced, its purpose is to observe the overhead of copying three pointers instead of one.
 
 This was found to produce no measurable difference.
-
-\subsubsection{Cache Contention}
-
-Since fat pointers are three times as large as raw pointers, they cause increased cache usage.
-For this benchmark, bounds checks were disabled.
-
-\textbf{Unfortunately, on zenith this wasn't found to produce any performance difference.}
 
 \subsubsection{Following a Linked List}
 
@@ -100,38 +93,94 @@ A final cause of the slowdown could be that since the table lookup functions are
 
 The olden suite of benchmarks are designed to be very pointer operation heavy \cite{olden}.
 
-\subsubsection{Treeadd}
+\begin{table}
+\centering
+\begin{tabular}{|lrr|}
+\hline  Benchmark & Fat Pointer Overhead & Lookup Table Overhead\\
+\hline
+Bisort      & \verb!71% +/- 1%!     & \verb!164% +/-  1%! \\
+Perimeter   & \verb!35% +/- 7%!     & \verb!294% +/- 11%! \\
+Power       & \verb!46% +/- 1%!     & \verb!101% +/-  1%! \\
+Treeadd     & \verb!49% +/- 4%!     & \verb!253% +/-  6%! \\
+Tsp         & \verb!95% +/- 2%!     & \verb!211% +/-  3%! \\
+\hline
+\end{tabular}
+\caption{Fat pointer and lookup table overheads compared to uninstrumented runtime for the Olden benchmarks}
+\label{tab:OldenRuntime}
+\end{table}
+\definecolor{bblue}{HTML}{4F81BD}
+\definecolor{rred}{HTML}{C0504D}
+\definecolor{ggreen}{HTML}{9BBB59}
+\definecolor{ppurple}{HTML}{9F4C7C}
+\begin{figure}
+\centering
+\begin{tikzpicture}
+    \begin{axis}[
+        width  = 0.85*\textwidth,
+        height = 8cm,
+        major x tick style = transparent,
+        ybar=2*\pgflinewidth,
+        bar width=14pt,
+        ymajorgrids = true,
+        ylabel = {Relative Runtime (\%)},
+        symbolic x coords={Bisort,Perimeter,Power,Treeadd,Tsp},
+        xtick = data,
+        scaled y ticks = false,
+        enlarge x limits=0.25,
+        ymin=0,
+        legend cell align=left,
+        legend style={
+                at={(1,1.05)},
+                anchor=south east,
+                column sep=1ex
+        }
+    ]
+        \addplot[style={bblue,fill=bblue,mark=none}]
+            coordinates {(Bisort,171) (Perimeter,135) (Power,146) (Treeadd, 149) (Tsp, 195)};
 
-The treeadd benchmark constructs a binary tree where each node contains a value in addition to two children (all values are set to 1).
-A depth-first search is then performed, accumulating the value at each node.
+        \addplot[style={rred,fill=rred,mark=none}]
+            coordinates {(Bisort, 264) (Perimeter, 294) (Power, 201) (Treeadd, 253) (Tsp,311)};
 
-The implementation of CCured-like analysis counts all member pointers as a non-SAFE type (since the actions on the pointer and therefore the CCured type will be different for each instance), meaning that the tree traversal doesn't benefit from CCured-analysis.
+        \legend{Fat Pointers, Lookup Table}
+    \end{axis}
+\end{tikzpicture}
+\caption{Graphical representation of relative runtime for Olden benchmarks}
+\label{fig:OldenRuntime}
+\end{figure}
 
-Under Bandage, the tree construction stage, dominated by memory allocations took a \verb!42%! performance hit and the tree traversal stage took a \verb!77%! performance hit.
 
-% 744809 223446 968255
-% 1060893 395186 1456079
-% Unoptimized bounds checking
-
-\subsubsection{Bisort}
-
-The bisort benchmark constructs a binary tree with each node containing a random value.
-The tree is then sorted by performing a binary merge at each node, working up to the root node.
-
-Under Bandage, tree construction displayed little overhead with a \verb!3%! slowdown, though the sorting caused a larger overhead of \verb!165%!, resulting in an overall runtime increase of \verb!83%!.
-
-\subsubsection{Mst}
-\subsubsection{Perimeter}
-\verb!-8%!
-\verb!23%!
-\verb!-3%!
-\subsubsection{Power}
-\subsubsection{Tsp}
-
-The tsp benchmark constructs a 2d tree of nodes and proceeds to solve the travelling salesman problem.
-For nodes close together, it uses the closest pointer heuristic.
-
-Under Bandage, tree construction introduced no overhead but application of the travelling salesman problem increased runtime by \verb!103%!.
+%\subsubsection{Treeadd}
+%
+%The treeadd benchmark constructs a binary tree where each node contains a value in addition to two children (all values are set to 1).
+%A depth-first search is then performed, accumulating the value at each node.
+%
+%The implementation of CCured-like analysis counts all member pointers as a non-SAFE type (since the actions on the pointer and therefore the CCured type will be different for each instance), meaning that the tree traversal doesn't benefit from CCured-analysis.
+%
+%Under Bandage, the tree construction stage, dominated by memory allocations took a \verb!42%! performance hit and the tree traversal stage took a \verb!77%! performance hit.
+%
+%% 744809 223446 968255
+%% 1060893 395186 1456079
+%% Unoptimized bounds checking
+%
+%\subsubsection{Bisort}
+%
+%The bisort benchmark constructs a binary tree with each node containing a random value.
+%The tree is then sorted by performing a binary merge at each node, working up to the root node.
+%
+%Under Bandage, tree construction displayed little overhead with a \verb!3%! slowdown, though the sorting caused a larger overhead of \verb!165%!, resulting in an overall runtime increase of \verb!83%!.
+%
+%\subsubsection{Mst}
+%\subsubsection{Perimeter}
+%\verb!-8%!
+%\verb!23%!
+%\verb!-3%!
+%\subsubsection{Power}
+%\subsubsection{Tsp}
+%
+%The tsp benchmark constructs a 2d tree of nodes and proceeds to solve the travelling salesman problem.
+%For nodes close together, it uses the closest pointer heuristic.
+%
+%Under Bandage, tree construction introduced no overhead but application of the travelling salesman problem increased runtime by \verb!103%!.
 
 \subsubsection{Other Benchmarks}
 
@@ -143,7 +192,7 @@ One of reasons that the benchmarks fail to run is Type Coercion.
 In some circumstances, the LLVM IR produced by clang coerces the types of parameters to functions.
 For example, the \verb!em3d! benchmark contains the following function:
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 typedef struct node_t{
     double value;
 } node_t;
@@ -212,15 +261,116 @@ However, this process also identified the O1 optimizations that were the most re
 Without the \verb!instcombine! or the \verb!sroa! optimizations, the speedup dropped to \verb!1%!.
 Additionally, the absence of the \verb!early-cse! optimization caused the speedup to drop to \verb!17%!.
 
+
+\section{Transformation Performance}
+
+\begin{figure}
+\centering
+\begin{tikzpicture}
+    \begin{axis}[
+        width  = 0.85*\textwidth,
+        height = 8cm,
+        major x tick style = transparent,
+        ybar=2*\pgflinewidth,
+        bar width=10pt,
+        ymajorgrids = true,
+        ylabel = {Compilation Time (s)},
+        symbolic x coords={Bisort,Perimeter,Power,Treeadd,Tsp},
+        xtick = data,
+        scaled y ticks = false,
+        enlarge x limits=0.25,
+        ymin=0,
+        legend cell align=left,
+        legend style={
+                at={(1,1.05)},
+                anchor=south east,
+                column sep=1ex
+        }
+    ]
+        \addplot[style={bblue,fill=bblue,mark=none}]
+            coordinates {(Bisort,   0.4733  ) (Perimeter,   0.5551  ) (Power,   0.9405  ) (Treeadd,   0.3964  ) (Tsp,   0.7323  )};
+
+        \addplot[style={ggreen,fill=ggreen,mark=none}]
+            coordinates {(Bisort,   0.5324 ) (Perimeter,   0.5975) (Power,   1.17) (Treeadd,   0.393) (Tsp,   0.9466)};
+
+        \addplot[style={rred,fill=rred,mark=none}]
+            coordinates {(Bisort,   0.3049  ) (Perimeter,   0.3395  ) (Power,   0.5169  ) (Treeadd,   0.2996  ) (Tsp,   0.4091  )};
+        \legend{Fat Pointers, Lookup Table, Raw}
+    \end{axis}
+\end{tikzpicture}
+\caption{Compilation Time for Olden Benchmarks}
+\label{fig:CompTime}
+\end{figure}
+
+\begin{figure}
+\centering
+\begin{tikzpicture}
+    \begin{axis}[
+        width  = 0.85*\textwidth,
+        height = 8cm,
+        major x tick style = transparent,
+        ybar=2*\pgflinewidth,
+        bar width=10pt,
+        ymajorgrids = true,
+        ylabel = {Binary Size (K)},
+        symbolic x coords={Bisort,Perimeter,Power,Treeadd,Tsp},
+        xtick = data,
+        scaled y ticks = false,
+        enlarge x limits=0.25,
+        ymin=0,
+        legend cell align=left,
+        legend style={
+                at={(1,1.05)},
+                anchor=south east,
+                column sep=1ex
+        }
+    ]
+        \addplot[style={bblue,fill=bblue,mark=none}]
+            coordinates {(Bisort,   27.287) (Perimeter,   28.631) (Power,   62.375) (Treeadd,   15.850) (Tsp,   44.090)};
+
+        \addplot[style={ggreen,fill=ggreen,mark=none}]
+            coordinates {(Bisort,   26.546  ) (Perimeter,   32.325  ) (Power,   63.873) (Treeadd,   16.930) (Tsp,   48.570  )};
+
+        \addplot[style={rred,fill=rred,mark=none}]
+            coordinates {(Bisort,   11.535  ) (Perimeter,   13.445  ) (Power,   18.293  ) (Treeadd,   10.590  ) (Tsp,   15.104  )};
+        \legend{Fat Pointers, Lookup Table, Raw}
+    \end{axis}
+\end{tikzpicture}
+\caption{Binary Size of Olden Benchmarks}
+\label{fig:BinSize}
+\end{figure}
+
+
 \section{Interactions with Optimizations passes}
 
-It was seen in the previous section that there were three O1 optimizations that produced significant changes in the runtime of the instrumented code.
+Since many optimizations rely on each other and inter-react, instead of individually enabling optimizations, I individually disabled them.
+Table \ref{tab:Opts} shows the performance difference when the tsp benchmark (picked as it produced the highest runtime increase itself) was run with the stated optimizations disabled.
+All of the optimizations used in O1 optimization were run 10 times and only those that produced a difference of greater than \verb!5%! are shown in the table.
+
+Since the stated optimizations were omitted, a beneficial optimization would give a negative value in the table - showing that its omission caused the resulting binary to take longer to execute.
+The table shows that most optimizations give a negative result when applied to the fat pointer code.
+
+\begin{table}
+\centering
+\begin{tabular}{|lrr|}
+\hline Omitted Optimization & Raw Speedup & Fat Pointer Speedup \\
+\hline
+early-cse   &   \verb!-3.30%! &   \verb!22.29%!   \\
+instcombine &   \verb!5.48%!  &   \verb!7.56%!    \\
+loop-rotate &   \verb!-1.28%! &   \verb!9.94%!    \\
+simplifycfg &   \verb!-2.47%! &   \verb!-5.75%!   \\
+sroa        &   \verb!0.23%!  &   \verb!7.45%!    \\
+\hline
+\end{tabular}
+\caption{Performance Differences on the Tsp benchmark with selection optimizations disabled}
+\label{tab:Opts}
+\end{table}
 
 \section{Security}
 
 \subsection{Buffer Overflow Attack}
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 int main(void){
     char pass[16];
     int userid = 0;
@@ -230,7 +380,7 @@ int main(void){
 }
 \end{minted}
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 // In stdio
 char *gets(char *buf)
 {
@@ -257,7 +407,7 @@ Therefore once the value of \verb!s! exceeds its base and bounds (that of the or
 
 \subsection{Heartbleed}
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 /* Read type and payload length first */
 hbtype = *p++;
 n2s(p, payload);
@@ -293,7 +443,7 @@ memcpy(bp, pl, payload);
 %Implementing SAFE pointers as fat pointers but without the bounds checking brings consistency but keeps the overhead of fat pointers, which isn't used when SAFE pointers are kept as raw pointers.
 \subsection{Returning a Local Variable}
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 int *ReturnLocalVariable(){
     int x = 5;
     return &x;
