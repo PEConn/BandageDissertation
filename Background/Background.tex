@@ -1,13 +1,15 @@
 \section{Pointer Safety}
 
 One of the primary advantages of C is that it gives the programmer a model that is very close to hardware, allowing access to essentially arbitrary areas of memory.
-Though this is very powerful, it can also be very dangerous and numerous security vulnerabilities have arisen from programmers not putting careful checks on their memory operations.
+Although this is very powerful, it can also be very dangerous and numerous bugs have arisen from programmers not putting careful checks on their memory operations.
+These bugs can lead to corrupted data, or potentially a security vulnerability.
 
 \subsection{Example: Buffer Overflow Attack}
 
+This first example displays a pointer checking bug that a malicious user can turn into a security vulnerability, by allowing user input to overwrite a variable it should not be able to \cite{bufferOverflow}.
 In a buffer overflow attack, the attacker makes use of the memory layout of the program to overwrite a variable that they should not have access to \cite{bufferOverflow}.
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 #include <stdio.h>
 #include <string.h>
 
@@ -33,7 +35,7 @@ int main(void){
 }
 \end{minted}
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 // In stdio
 char *gets(char *buf)
 {
@@ -78,7 +80,7 @@ Where, in a buffer overflow the attacker can write past the allocated memory to 
 
 The bug is contained in the following code \cite{sslSrc}:
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 /* Read type and payload length first */
 hbtype = *p++;
 n2s(p, payload);
@@ -116,7 +118,7 @@ Finally \verb!bp! is sent back to the adversary.
 This final example shows a nasty bug, one that potentially could be used for a security vulnerability, but since the code normally does not function correctly it hasn't been a major exploit \cite{returnLocal}.
 This bug stems from the programmers misunderstanding of the lifetime of variables on the stack.
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 Triangle *CreateTriangle(Point *a, Point *b, Point *c){
     Triangle T;
     T.a = a;
@@ -140,7 +142,7 @@ The last example was a violation of temporal pointer safety - a pointer is retur
 The methods explored in this dissertation provide spatial safety, but not complete temporal safety.
 Consider the following code:
 
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 int *a=malloc(sizeof(int));
 int *b=a;
 
@@ -208,7 +210,7 @@ The \verb!store! instruction takes a piece of data and a pointer and stores the 
 The following C code turns into the following LLVM code:
 
 \begin{minipage}[t]{0.5\linewidth}
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 int a;
 int b;
 
@@ -216,7 +218,7 @@ a = b;
 \end{minted}
 \end{minipage}
 \begin{minipage}[t]{0.5\linewidth}
-\begin{minted}[frame=single]{llvm}
+\begin{minted}[fontsize=\footnotesize,frame=single]{llvm}
 %a = alloca i32
 %b = alloca i32
 %1 = load i32* %b
@@ -228,7 +230,7 @@ Here, spaces on the stack for the variables \verb!a! and \verb!b! are created, a
 The value stored in the area pointed to by \verb!%b! is loaded, and then stored in the area pointed to by the variable \verb!%a!.
 
 \begin{minipage}[t]{0.5\linewidth}
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 int *c;
 int d;
 ...
@@ -238,7 +240,7 @@ int d;
 \end{minted}
 \end{minipage}
 \begin{minipage}[t]{0.5\linewidth}
-\begin{minted}[frame=single]{llvm}
+\begin{minted}[fontsize=\footnotesize,frame=single]{llvm}
 %c = alloca i32*
 %d = alloca i32
 ...
@@ -259,7 +261,7 @@ The last interesting instruction for working with pointers is the GEP instructio
 GEP stands for 'Get Element Pointer', and is used for performing pointer arithmetic (it itself does not peform and memory access) \ref{llvmGEP}.
 
 \begin{minipage}[t]{0.3\linewidth}
-\begin{minted}[frame=single]{c}
+\begin{minted}[fontsize=\footnotesize,frame=single]{c}
 int *a;
 int *b;
 int c;
@@ -276,7 +278,7 @@ c = d[3];
 \end{minted}
 \end{minipage}
 \begin{minipage}[t]{0.7\linewidth}
-\begin{minted}[frame=single]{llvm}
+\begin{minted}[fontsize=\footnotesize,frame=single]{llvm}
 %a = alloca i32*
 %b = alloca i32*
 %c = alloca i32
