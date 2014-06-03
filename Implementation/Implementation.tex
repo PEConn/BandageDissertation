@@ -212,7 +212,6 @@ This gives the Module pass information about other modules that it would not nor
 Bandage transforms all function declarations that match functions in the function list file.
 This declaration will be transformed identically to the function definition in the file it is defined in so the linker will be able to merge them together after the transformation is complete.
 
-\subsubsection{Evaluate String Function}
 
 \subsection{Structs}
 
@@ -255,7 +254,7 @@ In this way, all structs can be modified in linear order without having to worry
 
 The clang compiler replaces instances of the \verb!sizeof! operator with constant integers, so it is not present in LLVM IR.
 The fat pointer versions of structs will always be equal to or larger in size than their raw counter parts.
-This leads to the undesirable situation where the source program allocates an area of memory for a struct using the common \verb!MyStruct *S = malloc(sizeof(MyStruct))! idiom.
+This leads to the undesirable situation where the source program allocates area of memory for using the common \verb!MyStruct *S = malloc(sizeof(MyStruct))! idiom.
 The LLVM IR will contain a constant integer (indistinguishable from other all other constant integers) representing the size of the original struct, though the actual struct used will be the fat pointer version, which requires more memory.
 Currently the parameter to \verb!sizeof! must be changed manually, but it would be possible to modify clang to add annotations making it possible for Bandage to do this automatically.
 
@@ -290,26 +289,28 @@ Here, the base and bound are store in the lookup table, indexed by the address o
 Figure \ref{fig:PtrChain} shows an example where each box contains the name of a variable, if it is local or its address if it is not, and its value below it, and the lookup table is displayed below. 
 
 \begin{figure}
+\centering
 \tikzstyle{pointer} = [rectangle, draw, 
     text width=5em, text centered, rounded corners, minimum height=3em]
-\tikzstyle{line} = [draw, -latex']
-\begin{tikzpicture}[node distance = 3cm, auto]
-	\node [pointer] (a) {a \\ 0x1000};
-	\node [pointer, right of=a] (b) {0x1000 \\ 0x5000};
-	\node [pointer, right of=b] (c) {0x5000 \\ 0x3000};
-	\node [pointer, right of=c] (d) {0x3000 \\ 42};
-	\path [line] (a) -- (b);
-	\path [line] (b) -- (c);
-	\path [line] (c) -- (d);
+    \tikzstyle{line} = [draw, -latex']
+    \begin{tikzpicture}[node distance = 3cm, auto]
+    \node [pointer] (a) {a \\ 0x1000};
+\node [pointer, right of=a] (b) {0x1000 \\ 0x5000};
+\node [pointer, right of=b] (c) {0x5000 \\ 0x3000};
+\node [pointer, right of=c] (d) {0x3000 \\ 42};
+\path [line] (a) -- (b);
+\path [line] (b) -- (c);
+\path [line] (c) -- (d);
 \end{tikzpicture}
-
+\newline
+\vspace{5mm}
+\newline
 \begin{tabular}{|r|r|r|}
 \hline Address & Base & Bound \\
 \hline 0x1000 & 0x5000 & 0x5008 \\
 \hline 0x5000 & 0x3000 & 0x3004 \\
 \hline
 \end{tabular}
-\end{figure}
 \caption{Example of pointer chain with associated lookup table entries.}
 \label{fig:PtrChain}
 \end{figure}
@@ -426,7 +427,7 @@ A multi-level pointer, when transformed into a fat pointer, has each layer of in
 int **a;
 // After
 struct FatPointer.1{int *value, *base, *bound;};
-struct FatPointer.2{struct FatPointer.2 *value, *base, *bound;};
+struct FatPointer.2{struct FatPointer.2 *value,*base,*bound;};
 struct FatPointer.2 a;
 \end{minted}
 
@@ -596,8 +597,6 @@ The constraints used in this analysis are quite simple and can be solved with a 
         \end{itemize}
     \end{enumerate}
 \end{enumerate}
-
-\textbf{I should go over the CCured-analysis part in the Literature Review section and clearly state the constraints. Then when detailing this, I can refer to which constraints which part of the algorithm are fulfilling}
 
 %\section{Not-Null Analysis}
 %
