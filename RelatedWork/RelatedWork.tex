@@ -1,5 +1,7 @@
-In this section I will review current work in the area and place it in a spectrum with highly compatible on one side and highly complete on the other.
-This culminates with Figure \ref{fig:Spectrum} at the end of this chapter that maps out the design space.
+\input{RelatedWork/Spectrum.tikz}
+
+In this section I will review current work in the areas of pointer bounds checking and memory safety and place it in a spectrum with highly compatible on one side and highly complete on the other.
+This culminates with Figure \ref{fig:Spectrum} that maps out the design space.
 
 Most pointer-safety systems fall into one of three categories, based on how they track valid areas of memory.
 In fat pointer systems, information about valid areas of memory is carried alongside the pointer, whereas in lookup table systems it is held seperate and associated with the pointer in some other method.
@@ -11,7 +13,8 @@ Cyclone allows the programmer to write in a C-like language that is designed to 
 It does this by imposing restrictions, such as limiting pointer arithmetic and providing extensions, such as a never-null pointer type.
 While some of these extensions are automatic, the programmer must make use of most of them explicitly which required between 0\% and 46\% of lines of code to be changed in the corpus tested.
 
-Arguably other languages can be included in at this end of the spectrum. \textbf{A bit more}
+Arguably other languages can be included in at this end of the spectrum. 
+For example, Rust \cite{rust}, which is designed to be memory safe, not permitting null or dangling pointers and placing ownership of memory as a central tenant of the language.
 
 \section{Systems requiring library recompilation}
 
@@ -28,6 +31,19 @@ It is suggested in the paper that Hardbound could be combined with CCured, where
 
 The Intel Memory Protection Extensions \cite{mpx,intelMpxSpec} are a set of extensions to the x86 instruction set designed to check pointer references that may be exploited for security exploits.
 They require compiler, runtime library and operating system support.
+
+The CHERI system \cite{cheri}, uses a specialized FPGA to track capabilities which are unforgeable pointers that grant access to a linear range of address space.
+The project uses program knowledge to combine these capabilities with C pointers - the capabilities contain base and length information to that can be used to determine if a pointer is in bounds and uses hardware to perform bounds checks on memory access.
+
+\textit{Efficient Detection of all pointer and array access errors} \cite{austin1994efficient} uses a more complex fat pointer representation than just \{value, base, bound\} to extend their coverage beyond just spatial safety to include temporal safety.
+
+The first additional field is the storage class enumeration, ranging over the values of Heap, Global and Local.
+This allows detection of erroneous deallocations (such as attempting to free a local variable).
+The second field, a capability is more interesting.
+On memory allocation, a unique capability is created and stored in a capability table.
+The capability is deallocated once the memory is freed (either through free or returning from a function).
+The presence of the capability referenced by a fat pointer is checked on pointer dereference.
+This was found to produce an overhead of between 130-450\%.
 
 \section{Systems requiring program recompilation}
 
@@ -67,9 +83,7 @@ Additionally, \verb!malloc! is modified so that the memory surrounding that allo
 However, address sanitizer provides no mapping between the valid areas of memory and variables.
 It would be possible for pointer arithmetic to be used to to still cause a buffer overflow into another variables' valid area of memory, though it must jump over the poisoned area.
 
-One of the two main systems implemented in this dissertation is SoftBound \cite{nagarakatte2009softbound}.
-It is a compile-time transformation that stores information about the valid area of memory associated with a pointer separately from the pointer.
-
+SoftBound \cite{nagarakatte2009softbound} is a compile-time transformation that stores information about the valid area of memory associated with a pointer separately from the pointer.
 By storing information separately from the pointer, memory layout doesn't change, enabling binary compatibility and reducing implementation effort, however it does require a search for suitable bounds information on pointer dereference.
 Additionally the paper contains a proof that spatial integrity is provided by checking the bounds of pointers on a store or load.
 
@@ -86,26 +100,8 @@ Heapmon can only deal with memory on the heap (not the stack or globals) and wor
 It essentially does this by reverse engineering the binary to extract information about the data structures that need protecting and rewriting it to contain checks on pointer dereference.
 
 
-\section{To Do}
 
-\textit{Efficient Detection of all pointer and array access errors} \cite{austin1994efficient} uses a more complex fat pointer representation than just \{value, base, bound\} to extend their coverage beyond just spatial safety to include temporal safety.
-
-The first additional field is the storage class enumeration, ranging over the values of Heap, Global and Local.
-This allows detection of erroneous deallocations (such as attempting to free a local variable).
-The second field, a capability is more interesting.
-On memory allocation, a unique capability is created and stored in a capability table.
-The capability is deallocated once the memory is freed (either through free or returning from a function).
-The presence of the capability referenced by a fat pointer is checked on pointer dereference.
-This was found to produce an overhead of between 130-450\%.
-
-
-MPX
-
-Lo-Pointers
-
-CHERI
-
-\section{Systems implemented in this Dissertation}
+\section{Systems implemented in this dissertation}
 
 The fat pointer transformation implemented as part of Bandage is not a straight implementation from any research paper, but rather an implementation of the common themes spanning those that take the fat pointer approach.
 The lookup table approach was more directly inspired by Softbound, using its lookup table structure (though with interchangeable implementations) and optimizations for dealing with local pointers.
@@ -113,50 +109,6 @@ Both of these transformations were designed with compatibility in mind, requirin
 
 \section{Design Space}
 
-\begin{figure}
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-    width=\textwidth,
-    xmin=0,
-    xmax=1,
-    ymin=0,
-    ymax=1,
-    xlabel={Compatibility},
-    ylabel={Completeness},
-    ]
-\addplot[
-    only marks,
-    mark=*,
-    mark options={fill=white},
-    visualization depends on=\thisrow{alignment} \as \alignment,
-    nodes near coords, % Place nodes near each coordinate
-    point meta=explicit symbolic, % The meta data used in the nodes is not explicitly provided and not numeric
-    every node near coord/.style={anchor=\alignment}, % Align each coordinate at the anchor 40 degrees clockwise from the right edge
-    ] table [% Provide data as a table
-     meta index=2 % the meta data is found in the third column
-     ] {
-        x       y       label       alignment
-        1       0       C           -40
-        0.2     0.8     Cyclone     -40
-        0.7     0.65     {Bandage (FP)}    180
-        0.7     0.7     {Bandage (LT)}     180
-        0.4     0.8     CCured      -40
-        0.7     0.6     SoftBound   -180
-        0.4     0.6     HardBound   0
-        0.6     0.6     J\&K        -40
-        0.9     0.4     Heapmon     90
-	0.9	0.3	{Body Armour} 90
-        0.7     0.55    AddrSan     180
-        0.7     0.5     Baggy       90
-	0.7	0.4	{Practical Dynamic} 0
-        0.4     0.5     MPX         0
-    };
-\end{axis}
-\end{tikzpicture}
-\caption{The Completeness vs Compatibility Tradeoff in Pointer Safety Systems}
-\label{fig:Spectrum}
-\end{figure}
 
 A summary of the design space is presented in Figure \ref{fig:Spectrum}.
 At the very bottom end of completeness is the untransformed C language, which offers the highest compatibility but no pointer safety guarantees.

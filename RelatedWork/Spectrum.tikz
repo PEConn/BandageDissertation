@@ -1,0 +1,73 @@
+\begin{figure}
+\centering
+\begin{tikzpicture}
+\makeatletter
+\tikzset{
+    nomorepostaction/.code=\makeatletter\let\tikz@postactions\pgfutil@empty, % From http://tex.stackexchange.com/questions/3184/applying-a-postaction-to-every-path-in-tikz/5354#5354
+    my axis/.style={
+        postaction={
+            decoration={
+                markings,
+                mark=at position 1 with {
+                    \arrow[ultra thick]{latex}
+                }
+            },
+            decorate,
+            nomorepostaction
+        },
+        thin,
+        -, % switch off other arrow tips
+        every path/.append style=my axis % this is necessary so it works both with "axis lines=left" and "axis lines=middle"
+    }
+}
+\makeatother
+
+\begin{axis}[
+    width=\textwidth,
+    yticklabels={,,},
+    xticklabels={,,},
+    ticks=none,
+    axis lines = left,
+    axis line style=my axis,
+    xmin=0,
+    xmax=1,
+    ymin=0,
+    ymax=1,
+    xlabel={Compatibility},
+    ylabel={Completeness},
+    ]
+\addplot[
+    only marks,
+    mark=*,
+    mark options={fill=white},
+    visualization depends on=\thisrow{alignment} \as \alignment,
+    nodes near coords, % Place nodes near each coordinate
+    point meta=explicit symbolic, % The meta data used in the nodes is not explicitly provided and not numeric
+    every node near coord/.style={anchor=\alignment}, % Align each coordinate at the anchor 40 degrees clockwise from the right edge
+    ] table [% Provide data as a table
+     meta index=2 % the meta data is found in the third column
+     ] {
+        x       y       label       alignment
+        1       0.1       C           -40
+        0.2     0.8     Cyclone     -40
+        0.7     0.65     {Bandage (FP)}    180
+        0.7     0.7     {Bandage (LT)}     180
+        0.4     0.75    {Bandage (LT)}     180
+        0.4     0.7     {Bandage (FP)}      180
+        0.4     0.8     CCured      0
+        0.7     0.6     SoftBound   -180
+        0.4     0.6     HardBound   0
+        0.4     0.8     CHERI       180
+        0.6     0.6     J\&K        -40
+        0.9     0.4     Heapmon     90
+	0.9	0.3	{Body Armour} 90
+        0.7     0.55    AddrSan     180
+        0.7     0.5     Baggy       90
+	0.7	0.4	{Practical Dynamic} 0
+        0.4     0.5     MPX         0
+    };
+\end{axis}
+\end{tikzpicture}
+\caption{The Completeness vs Compatibility Tradeoff in Pointer Safety Systems}
+\label{fig:Spectrum}
+\end{figure}

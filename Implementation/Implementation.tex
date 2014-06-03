@@ -59,8 +59,8 @@
 \label{fig:FatPointerAndTable}
 \end{figure}
 
-This section cover the implementation of the three core sections of Bandage: the fat pointer implementation, the SoftBound-like implementation and the CCured-like analysis.
-The two different implementation methods for tracking pointer bounds are contrasted in Figure \ref{fig:FatPointerAndTable}.
+This section cover the implementation of the three core sections of Bandage: the fat pointer and lookup table transformations and the pointer analysis.
+The two different transformations are contrasted in Figure \ref{fig:FatPointerAndTable}.
 With fat pointers the bounds information associated with a pointer is stored alongside it in memory, while with the lookup table, the bounds information is stored separately and indexed by the address of the pointer.
 
 
@@ -73,71 +73,59 @@ int *x = malloc(5*sizeof(int));
 x += 3;
 \end{minted}
 
-In bandage, the variable x, of type \verb!i32*! would be turned into a structure of type \verb!{i32*, i32*, i32*}!.
+In Bandage, the variable x, of type \verb!i32*! would be turned into a structure of type \verb!{i32*, i32*, i32*}!.
 Assuming that malloc returned the address \verb!0x1000!, the variable x would contain \verb!{0x1000, 0x1000, 0x1020}! because it contains a pointer that currently points to \verb!0x1000! and whose valid addresses start at \verb!0x1000! inclusive and end at \verb!0x1020! not inclusive.
 After the \verb!x += 3! instruction, the variable x would contain \verb!{0x1012, 0x1000, 0x1020}!.
 
 In order to keep type safety in the LLVM IR, different types of pointers create different types of fat pointers, eg a \verb!i32*! creates an \verb!{i32*, i32*, i32*}! whereas a \verb!i8*! creates a \verb!{i8*, i8*, i8*}!.
 This will result in a fat pointer class for every pointer type in the program, but because class information does not propagate to the final binary, this shouldn't create any space overhead.
 
-However, this adds some complexity when pointers are cast to different types.
-Previously, casting from a pointer to a pointer (for example casting from the \verb!i8*! returned from \verb!malloc! to the \verb!i32*! for the integer pointer in the above example would take one bitcast instruction with raw pointers.
-With fat pointers, a new fat pointer would need to be created, the address of each field would need to be calculated, each field would have to be loaded, bitcast and then stored in the new fat pointer, adding a fair amount of overhead.
-The current implementation is optimized for this case (detecting whether the result of a \verb!malloc! is going to be bitcast, and if so doesn't create the intermediate fat pointer).
-\textbf{It may be worthwhile seeing how well this optimization does}.
+%However, this adds some complexity when pointers are cast to different types.
+%Previously, casting from a pointer to a pointer (for example casting from the \verb!i8*! returned from \verb!malloc! to the \verb!i32*! for the integer pointer in the above example would take one bitcast instruction with raw pointers.
+%With fat pointers, a new fat pointer would need to be created, the address of each field would need to be calculated, each field would have to be loaded, bitcast and then stored in the new fat pointer, adding a fair amount of overhead.
+%The current implementation is optimized for this case (detecting whether the result of a \verb!malloc! is going to be bitcast, and if so doesn't create the intermediate fat pointer).
 
 \subsection{Types of Fat Pointer}
 
 During the running of the program, each fat pointer can be classified as one of three types: \textit{HasBounds}, \textit{NoBounds} and \textit{Null}.
 
-The \textit{Null} fat pointers have their value set to \verb!NULL!, and no restrictions on their base or bound.
+\paragraph{Null} fat pointers have their value set to null, and no restrictions on their base or bound.
 They represent null pointers and throw an error whenever they are dereferenced.
 
-The \textit{NoBounds} fat pointers have their base set to \verb!NULL! and not-\verb!NULL! in their value.
+\paragraph{NoBounds} fat pointers have their base set to null and not-null in their value.
 They represent fat pointers whose bounds we do not know, for example the result of a external function call.
 These pointers cannot be bounds checked on dereference, so do not throw an error.
 
-Finally, textit{HasBounds} pointers have not-\verb!NULL! in all of their fields and represent a pointer whose bounds we know.
+\paragraph{HasBounds} pointers have not-null in all of their fields and represent a pointer whose bounds we know.
 These pointers are bounds checked on dereference and throw an error if the value is out of bounds.
 
-\subsection{Pointers}
+\subsection{Transformation}
 
 \subsubsection{Allocation}
 
-The first step in the pointer transformation is to find all \verb!alloca! instructions that create a pointer, and replace them with a fat pointer.
-Even at this early stage we can add some safety to the program by initialising the fat pointer value to be null.
-
+I start the transformation by finding the \verb!alloca! instructions that create a pointer, and replacing them with a fat pointer.
+Even at this early stage I add some safety to the program by initialising the fat pointer value to be null (a transformation that does not violate the C standard).
 In terms of performance, we are swapping one allocation instruction allocating a pointer's worth of memory with another, allocating three pointers worth of memory. 
-On testing this was found to produce no performance difference, though could increase cache pressure (as the number of pointers that can fit on the cache are divided by three).
 
-When the value was set to \verb!NULL!, an overhead of 1.7\% was added.
+\subsubsection{Instruction-based vs Chain-based Transformation}
 
-\subsubsection{Instruction-based vs Chain-based}
+My original implementation of the fat-pointer transformation moved through the program and operated on an instruction-by-instruction basis, gathering all information for transforming an instruction from that instruction.
+I found that this approach, though originally simple rapidly gained complexity as the transformation matured.
+Upon integration with the pointer analysis, I switched to a different, more holistic approach, that of use-def chains.
 
-The original implementation of bandage moved through the program and transformed it on an instruction-by-instruction basis, gathering all information from the transformation from the instruction being transformed (eg the opcode, its arguments, the types of the arguments and the instruction type).
+An use-def chain is a sequence of instructions, where every instruction is used by the subsequent instruction.
+Under this implementation, the source is searched for allocation and call instructions - the two instructions that start instruction chains, and their usage was followed.
 
-It was found that this approach, though originally simple, rapidly gained complexity as more sophisticated transformations were needed.
-Upon integration with the CCured-like pointer analysis, the implementation was switched to a different, more holistic approach, that of instruction-chains.
+These instruction chains terminate in one of a few common instructions. Store and compare instructions terminate the chains leading to both of their operands, the return instruction terminates the chain of its operand and a function call terminates the chain of all of its parameters and initiates one for its return value.
 
-An instruction chain is a sequence of instructions, where every instruction is used by the subsequent instruction.
-Under this implementation, the source is searched for allocation instructions and call instructions - the two instructions that start instruction chains, and their usage was followed.
-
-These instruction chains tend to terminate in one of a few common instructions:
-
-\begin{itemize}
-\item \textbf{Store} - A store instruction usually terminates two instruction chains, that of the pointer and that of the value.
-\item \textbf{Call} - A call instruction terminates the instruction chains of all of the parameters that are used in it. Additionally it creates a new instruction chain of its return value (if that return value is used).
-\item \textbf{Return} - Terminates the instruction chain of the return value.
-\item \textbf{Compare} - Similar to a store instruction, this terminates the two instruction chains of its operands.
-\end{itemize}
-
-The following diagram shows the two use chains generated by the following code:
+Figure \ref{fig:UseDef} shows the two use chains generated by the following code:
 
 \begin{minted}[frame=single]{c}
 int *a;
 int *b;
 *a = *b;
 \end{minted}
+\begin{figure}
 \tikzstyle{block} = [rectangle, draw, fill=blue!40, 
     text width=5em, text centered, rounded corners, minimum height=2em]
 \tikzstyle{line} = [draw, -latex']
@@ -154,18 +142,20 @@ int *b;
 	\path [line] (load_b1) -- (load_b2);
 	\path [line] (load_b2) -- (store);
 \end{tikzpicture}
+\caption{Simple example of a use-def chain.}
+\label{fig:UseDef}
+\end{figure}
 
 \subsubsection{Loads}
 
 Loads are where most of the work occurs with fat pointers.
-
 First it must be determined whether the load needs be transformed to return the value contained within the fat pointer, or whether the load needs to return the fat pointer.
-The latter case may arise when the load is to be used as the value in a store (where we store the fat pointer in anther fat pointer) or when the load is loading the parameter for a function call.
+The latter case may arise when the load is to be used as the value in a store (where we store the fat pointer in anther fat pointer) or when the load is loading the parameter for a fat-pointer capable function call.
 Checking for these cases is an example where the chain-based view of the data allows simpler checks than the instruction-based view.
 
 If it is determined that the value of the fat pointer must be loaded instead of the fat pointer itself, bounds checking can occur.
 The value, base and bounds values are loaded out of the fat pointer and have arithmetic performed on them.
-If the value is less than the base, or greater than or equal to the base, a user defined function is called.
+If the value is less than the base, or greater than or equal to the base, an error is reported.
 
 The transformation for the code derefencing the variable \verb!a! is shown below, with the raw pointer code being:
 
@@ -190,11 +180,7 @@ The \verb!getelementptr! instructions get the addresses of the fields of the fat
 Though the Bandage implementation creates three new \verb!getelementptr! instructions on every dereference, these offsets are constant, and so repeated calls should be removed further down the compilation pipeline.
 
 The cost of fat pointer dereference comes from the additional loads, and the bounds checking.
-
 If bounds checking were ignored, overhead would be introduced because on dereference there are now two loads instead of just one - there is one to get the pointer out of the fat pointer, and one to dereference the pointer.
-\textbf{This would be a nice place for a microbenchmark on the raspberry pi}
-
-\subsubsection{Geps}
 
 \subsection{Functions}
 
@@ -202,46 +188,37 @@ Functions are duplicated into a function with a modified signature, such that ev
 
 A map from original functions to fat pointer capable functions is kept, and when a call instruction is encountered, the call target is updated to the fat pointer version of the function if it exists.
 
-If no such fat pointer version exists, there may need to be some conversion code around the call.
+If no such fat-pointer version of the function exists, conversion code is inserted around the call.
 This code will strip any fat pointers that are passed as parameters into raw pointers and, if the function returns a raw pointer, will wrap this into a fat pointer.
-This, newly created fat pointer will have its base set to \verb!NULL!, making it a \textit{NoBounds} pointer described above.
+This newly created fat pointer will have its base set to null, making it a \textit{NoBounds} pointer.
 
-\subsubsection{Multiple Source File Projects}
+\subsubsection{Multiple Source Files}
 
-Since LLVM module passes run on a single *.c source file, issues arise when using functions declared in other source files that the user has still written.
-When Bandage encounters a function definition but no declaration, it assumes that the function is external to the project, and is not to be modified.
-This works well for cases where the included function is part of a library that the programmer cannot modify, such as \verb!malloc! or \verb!printf!, however also is triggered when the function declaration is in another *.c file that the programmer can modify.
+Since LLVM module passes run on a single \verb!*.c! source file, issues arise when using functions declared in other source files that the user has still written.
+When Bandage encounters a function declaration but no definition, it assumes that the function is external to the project, and is not to be modified.
+This works well for cases where the included function is part of a library that the programmer cannot modify, such as \verb!malloc! or \verb!printf!, however also is triggered when the function declaration is in another \verb!*.c! file that the programmer can modify.
 
-Therefore, an additional pass was created, the \textbf{Function List} pass.
-This pass, takes a single llvm IR file and a filename and outputs all of the functions declared in that IR file.
+Therefore, I created an additional pass, the \textbf{Function List} pass.
+It takes a single LLVM IR file and a filename and outputs all of the functions defined in that IR file.
 
-Now, the process for using Bandage is as follows:
+Now, the process for using Bandage (with either transform) is as follows:
 \begin{itemize}
 \item Run the \textbf{Function List} pass over all source files, appending to the same function list file.
-\item Run the \textbf{Bandage} pass over all source files, with the function list file as a parameter.
+\item Run the \textbf{Transformation} pass over all source files, with the function list file as a parameter.
 \end{itemize}
 
-This gives the Module pass information about other modules that it would not normally have access to, and allows it to distinguish between function definitions for functions the programmer has no control over (so they can be ignored) and function definitions the programmer has control over.
+This gives the Module pass information about other modules that it would not normally have access to and allows it to distinguish between function declarations for functions the programmer has no control over (so they can be ignored) and function declarations for functions Bandage can modify.
 
-On finding a function definition that matches a function in the function list file, Bandage transforms the function definition.
-This function definition will be identically transformed to the function declaration in the file it is declared in, and so the linker will be able to merge them together after the Bandage transformation is complete.
+Bandage transforms all function declarations that match functions in the function list file.
+This declaration will be transformed identically to the function definition in the file it is defined in so the linker will be able to merge them together after the transformation is complete.
 
-\subsubsection{malloc}
-
-When a \verb!malloc! instruction is encountered, the fat pointer being assigned to has its value and base set to the return value, and its bound set to the base plus the argument to the malloc instruction (the size of the area of memory to be allocated).
-
-\subsubsection{free}
-When a \verb!free! instruction is encountered, the argument is followed backwards to find the fat pointer it came from.
-The value of the fat pointer is set to \verb!NULL!.
 \subsubsection{Evaluate String Function}
 
 \subsection{Structs}
 
-First, it is nessecary to isolate the structs that can be modified - those that are defined and used only in the code that Bandage can modify.
-For example, Bandage should be able to recognise that \verb!FILE! struct, included from \verb!stdio.h! should not be modified.
-
+First, I isolate the structs that can be modified.
 To accomplish this, Bandage collects all of the structs used in the input file, and subtracts from this set those structs that are used in functions (as a parameter or return type) that are declared, but not defined.
-So for example, \verb!FILE! would originally be flagged for modification, but upon discovery of the function declaration for \verb!fopen!, it would be removed from the list.
+So for example, \verb!FILE! (from \verb!stdio.h!) would originally be flagged for modification but upon discovery of the function declaration for \verb!fopen!, it would be removed from the list.
 In order to play nicely with projects that consist of multiple source files, the function file used to determine which functions can be modified is used again.
 
 Once the safe to modify structs are isolated, two modifications must be carried out on them:
@@ -253,42 +230,39 @@ This includes correctly modifying self-referential structs, such as a linked lis
 \end{itemize}
 
 The latter point is made simple due to an upgrade to the LLVM type system introduced in LLVM 3.0, type completion.
-This allows a type to be specified with no body, be used and have its body filled in later.
-
+This allows a type to be specified with no body, used and have its body filled in later.
 Therefore the algorithm to create the fat pointer types consists of:
 
 \begin{itemize}
-\item Collect a set of all struct.
-\item Subtract those structs that are used in functions that are defined externally.
+\item Collect a set of all structs.
+\item Subtract those structs that are used in functions that are declared and not in the function list.
 \item Create an empty type, for each struct in the set.
 \item For each struct in the set:
 \begin{itemize}
 \item For each element in the struct construct a new element with a type such that:
 \begin{itemize}
 \item For every layer of pointer indirection, there is now a fat pointer.
-\item For every nesting of static arrays, there is a static array of the same dimension, but potentially of a new type.
+\item For every layer of static arrays, there is a static array of the same dimension, but potentially of a new type.
 \item If the base type is a struct which is in the set, change it to the (potentially empty) fat pointer capable struct.
 \end{itemize}
 \item Fill the previously empty type.
 \end{itemize}
 \end{itemize}
 
-In this way, all structs can be modified in any plain linear order without having to worry about which structs reference other structs.
+In this way, all structs can be modified in linear order without having to worry about which structs reference other structs.
 	
-\subsubsection{Sizeof Woes}
+\subsubsection{Sizeof}
 
-The Bandage pass works on LLVM IR an intermediate stage created by the clang compiler.
-Unfortunately the clang compiler replaces instances of the \verb!sizeof! operator with constant integers in this process.
-
-The fat pointer versions of structs will always be equal to or larger in size than their raw counter parts, as pointers take up three times their previous size.
+The clang compiler replaces instances of the \verb!sizeof! operator with constant integers, so it is not present in LLVM IR.
+The fat pointer versions of structs will always be equal to or larger in size than their raw counter parts.
 This leads to the undesirable situation where the source program allocates an area of memory for a struct using the common \verb!MyStruct *S = malloc(sizeof(MyStruct))! idiom.
 The LLVM IR will contain a constant integer (indistinguishable from other all other constant integers) representing the size of the original struct, though the actual struct used will be the fat pointer version, which requires more memory.
-This can lead to memory access violations.
+Currently the parameter to \verb!sizeof! must be changed manually, but it would be possible to modify clang to add annotations making it possible for Bandage to do this automatically.
 
-\section{Softbound-like Lookup Table}
 
-For comparison between a fat pointer and meta-data approaches, the SoftBound system was implemented.
-SoftBound was chosen because, apart from differences in where the bounds information is stored, it is very similar to the fat pointer approach as it associates each pointer with a base and bound.
+\section{Lookup Table}
+
+For comparison with the fat pointer approach, I implemented a lookup table based on the SoftBound system.
 
 \subsection{Pointers on the Stack}
 
@@ -303,21 +277,19 @@ int *ptr_base;
 int *ptr_bound;
 \end{minted}
 
-This is essentially the same as the fat pointer approach, except the data is stored as multiple variables instead of all in one structure.
+This is essentially the same as the fat pointer approach, except the data is stored as multiple variables instead of in one structure.
 However, whereas replacing all uses of the pointer with a fat pointer then requires modifications in its further uses, this approach breaks nothing further down the line.
 
-This is implemented by iterating through all instructions in the program and acting on \verb!alloca!s of pointer types.
-On finding such an \verb!alloca!, two new pointers of the same type are created, and references of them are stored in a map, indexed by the reference of the original, such that further uses of the original pointer can be used to find its associated variables.
+I iterated through all instructions in the program and on finding an \verb!alloca! of a pointer, two new pointers of the same type are created.
+I store references to them in a map indexed by a reference to the original such that further uses of the original pointer can be used to find its associated variables.
 
 \subsection{Pointers on the Heap}
 
-With the fat pointer approach, when a pointer is allocated on the heap its base and bounds are allocated alongside it, in the fat pointer structure.
-SoftBound uses a table data structure to map the address of a pointer in memory to the base and bound for that pointer.
+The real difference between the fat pointer and lookup table transformation comes when dealing with pointers on the heap.
+Here, the base and bound are store in the lookup table, indexed by the address of the pointer.
+Figure \ref{fig:PtrChain} shows an example where each box contains the name of a variable, if it is local or its address if it is not, and its value below it, and the lookup table is displayed below. 
 
-The base and bound are retrieved from the lookup table, indexed by the address of the pointer on every load.
-For example, consider the case shown below, where each box contains the name of a variable, if it is local or its address if it is not, and its value below it. 
-
-\noindent
+\begin{figure}
 \tikzstyle{pointer} = [rectangle, draw, 
     text width=5em, text centered, rounded corners, minimum height=3em]
 \tikzstyle{line} = [draw, -latex']
@@ -331,15 +303,18 @@ For example, consider the case shown below, where each box contains the name of 
 	\path [line] (c) -- (d);
 \end{tikzpicture}
 
-The local variable \verb!a! points to the address \verb!0x1000!, which points to the address \verb!0x5000! which points to the address \verb!0x3000! which contains \verb!42!. This would be accompanied by the following lookup table:
-
-\noindent
 \begin{tabular}{|r|r|r|}
 \hline Address & Base & Bound \\
 \hline 0x1000 & 0x5000 & 0x5008 \\
 \hline 0x5000 & 0x3000 & 0x3004 \\
 \hline
 \end{tabular}
+\end{figure}
+\caption{Example of pointer chain with associated lookup table entries.}
+\label{fig:PtrChain}
+\end{figure}
+
+The local variable \verb!a! points to the address \verb!0x1000!, which points to the address \verb!0x5000! which points to the address \verb!0x3000! which contains \verb!42!.
 
 Consider the following code:
 
@@ -347,53 +322,48 @@ Consider the following code:
 ***a=12;
 \end{minted}
 
-The first dereference is simple and requires no lookup as \verb!a! is a local variable and therefore has other local variables associated with it containing its base and bound.
+The first dereference is simple and requires no lookup as \verb!a! is a local variable and therefore has local variables associated with it to hold its base and bound.
 The second dereference, loading the value from the pointer stored at \verb!0x1000!, is accompanied by a table lookup using the address of the pointer.
 This lookup finds the base and bounds and performs the bounds check.
 
 The third and final dereference follows the same pattern, loading the value at \verb!0x3000! from the pointer which it itself stored at \verb!0x5000!, using the address of the pointer (\verb!0x5000!) as a key to the lookup table and getting the correct bounds.
 
-\subsubsection{Table lookup}
+\subsection{The Table}
 
-This table lookup is performed whenever a pointer stored on the heap is dereferenced, and this is what introduces the major disadvantage of the lookup table approach.
-Such a table must map from the address of the pointer to the base and bounds of that pointer.
-
-Bandage was created with an exchangable backend, to allow multiple table implementations.
+This table lookup is performed whenever a pointer stored on the heap is dereferenced, and the runtime overhead of this is the major disadvantage of the lookup table approach.
+I created the lookup table transform to have interchangeable table implementations, allowing for future expansion.
 The source program can load one of multiple provided headers to implement different types of lookup table, and the correct functions are called for table setup, teardown, lookup and storage.
+Two different implementations of lookup table were implemented to compare the trdae-off between size and lookup cost.
 
-Three different implementations of lookup table were implemented to compare the trdae-off between size and lookup cost.
-
-\subsubsection{Toy lookup table}
-
-The first implementation is a toy example, consisting of a constant sized array that stores bounds that it is given and is linearly searched for lookup.
-If an attempt is made to add an entry to a filled table, the 'not-most-recently-used' entry is overwritten.
-
-This table was partially created for debugging purposes, but also to examine the idea of imperfect bounds storing.
-Since most programs will have incomplete bounds information from calls to external functions (such as \verb!gets!), the ideal of 100\% bounds coverage is practically not achievable.
-Therefore it is interesting to investigate the performance advantage gained from relaxing the constraint that all internally that all internally declared pointers must have their bounds fully tracked.
+%\subsubsection{Toy lookup table}
+%
+%The first implementation is a toy example, consisting of a constant sized array that stores bounds that it is given and is linearly searched for lookup.
+%If an attempt is made to add an entry to a filled table, the 'not-most-recently-used' entry is overwritten.
+%
+%This table was partially created for debugging purposes, but also to examine the idea of imperfect bounds storing.
+%Since most programs will have incomplete bounds information from calls to external functions (such as \verb!gets!), the ideal of 100\% bounds coverage is practically not achievable.
+%Therefore it is interesting to investigate the performance advantage gained from relaxing the constraint that all internally that all internally declared pointers must have their bounds fully tracked.
 
 \subsubsection{Hash Table}
 
-The lookup table was implemented using \verb!uthash!, a hash table implementation written in C and released under the BSD revised license. 
-
+I implemented a lookup table using \verb!uthash!, a hash table implementation written in C and released under the BSD revised license. 
 A hash table uses a hashing function to split its contents into a series of buckets, each of which contains a list of elements.
 On access, the index is hashed to find the correct bucket and the contents of the bucket are scanned linearly to find the correct item.
 In order for this scan to run in constant time, the number of items in the bucket must be bounded.
 
 In \verb!uthash!, the limit of items in each bucket is set to \verb!10!, and once this is exceeded, the number of buckets is doubled and items are redistributed into new buckets.
 This means that lookup time has a constant bound (though it still a linear lookup, which would take longer than an array access), though adding items to the hash table can either be constant time, or can cause the buckets to be resized, an operation linear in the size of the hash table.
-
 The advantage of a hash table is that it is quite small, with its size depending on the number of entries it contains.
 
 \subsubsection{Memtable}
 
-In contrast to the hash table is \verb!memtable!, which maps from areas of memory.
-It essentially creates a linear array of entries, with each entry covering a range of addresses.
+In contrast to the hash table is memtable.
+It creates a linear array of entries, with each entry covering a range of addresses.
 Since we are mapping from a single pointer to a pair of pointers, each area of memory mapped from is 8 bytes to 16 bytes.
 The size of the table is very large, as it consumes space for every field that it could contain, however value lookup consists only of pointer arithmetic and derefence so is contant time, as is value insertion.
 However, the size of the table means it cannot be entirely contained within the cache, so variable access times may arise due to cache effects.
 
-Current implementations of x86-64 do not allow programs to use the full range of addresses available to them, so for a pointer of 8 bytes/ 64 bits, only the least significant 48 bits will be used in address translation.
+Current implementations of x86-64 do not allow programs to use the full range of addresses, so for a pointer of 8 bytes/ 64 bits, only the least significant 48 bits will be used in address translation.
 Additionally, the last 16 bits are a sign extension of the 62nd bit, resulting in addresses falling into two categories, those that begin with 16 '1's and those that begin with 16 '0's.
 
 The upper set of these addresses (those starting with '1') are used by the kernel on most operating systems, with the lower half being used by the application.
@@ -405,7 +375,7 @@ To keep the arithmetic tidy, the available memory was partitioned into 4, with 3
 Finally, this application memory needs to have available space at both the top and the bottom.
 This is because the text and initialized data read from the program file are stored at the bottom of the available address space, and the stack and the heap are store at the top end of the address space.
 
-\textbf{This will have a diagram with it.} Therefore, of the $2^{47}$ available addresses the program can have, $2^{45}$ is still used for the program, whereas $3\times 2^{45}$ are used for the memtable.
+Therefore, of the $2^{47}$ available addresses the program can have, $2^{45}$ is still used for the program, whereas $3\times 2^{45}$ are used for the memtable.
 The $3\times 2^{45}$ area allocated for the table is positioned at offset $2^{44}$, effectively bisecting the application memory into that used for text and that used for the stack and heap.
 
 Therefore, to find the bounds information associated with the pointer $x$:
@@ -417,25 +387,24 @@ Therefore, to find the bounds information associated with the pointer $x$:
 \item Add the table start offset $2^{44}$.
 \end{itemize}
 
-One of the primary aims of this scheme was to keep implementation simple, and its purpose was to provide a comparison for runtimes.
+My primary aim of this scheme was to keep implementation simple and to provide a comparison to investigate runtime overhead.
 Multiple improvements could be made.
-Firstly, the table could be shrunk to 2/3 of the available space, not 3/4.
-Secondly, a split of 50:50 between the text and stack and heap segments of memory may not be ideal.
+First, the table could be shrunk to 2/3 of the available space, not 3/4.
+Second, a split of 50:50 between the text and stack and heap segments of memory may not be ideal.
 
-The idea of some sort of compression for the bounds information was considered, for example storing the base and bound as 32-bit offsets from the value of the pointer instead of 64-bit absolute offsets, however this would require a table update on each piece of pointer arithmetic and would go against the design of SoftBound.
+I considered some sort of compression for the bounds information, for example storing the base and bound as 32-bit offsets from the value of the pointer instead of 64-bit absolute offsets, however this would require a table update on each piece of pointer arithmetic adding greater runtime overhead.
 
 \subsubsection{Memtable for 32 bit architectures}
-
+I had to create a separate version of the memtable for use on 32-bit architectures.
 The above implementation assumes a 64-bit architecture.
-In the evaluation section, benchmarks are run on a Raspberry Pi (to examine how well parallelism masks bounds checking).
-For this purpose, the memtable was modified to run on 32-bit architectures, which modified the arithmetic behind the memtable, but not the core concept.
-
 The top $2^{30}$ addresses are reserved for use by the kernel, leaving $3 \times 2^{30}$ addresses for use by the application, again with the stack and heap on the top, and text and data at the bottom.
 This time, $2^{31}$ bytes are consumed by the memtable, with $2^{29}$ bytes left above for the stack and heap, and $2^{29}$ bytes left below for the text and data.
 \subsection{Functions}
 
 Since pointers are copied in function calls, the address of the pointer cannot be used to carry information about the pointer's base and bound across the function boundary.
-Therefore, locally defined functions are modified so that their base and bound are passed in explicitly as additional parameters.
+Therefore, I modify locally declared functions and those in the function list so that their base and bound are passed in explicitly as additional parameters.
+Likewise, the base and bounds of the return value must be transferred across the function call boundary.
+This involves creating a structure that contains the pointer value, base and bound and returning this instead.
 
 As with the fat pointer approach, this required duplicating all provided functions to those with modified signatures.
 Special care must be taken because there is no longer a one-to-one mapping between the parameters in the original function and those in the modified function.
@@ -447,13 +416,8 @@ int Func(int *x);
 int Func(int *x, int *x_base, int *x_bound);
 \end{minted}
 
-Additionally, the base and bounds of the return value must be transferred across the function call boundary.
-This involves creating a structure that contains the pointer value, base and bound and returning this instead.
-
 There are two key differences between this returned structure and a fat pointer.
-The first is in the purpose, a fat pointer will be returned from a function and then used as a fat pointer.
-The return structure will be returned from the function and immediately have its information stripped from it into local variables, it is purely a vehicle for returning multiple values.
-
+The first is in the purpose, a fat pointer will be returned from a function and then used as a fat pointer, whereas the return structure will be returned from the function and immediately have its information stripped from it into local variables, it is purely a vehicle for returning multiple values.
 The second is in how these structures deal with nested pointers.
 A multi-level pointer, when transformed into a fat pointer, has each layer of indirection turned into a structure, eg:
 
@@ -467,7 +431,7 @@ struct FatPointer.2 a;
 \end{minted}
 
 This is because a multi-level fat pointer must contain all of the bounds information with it.
-On the other hand, with SoftBound we only care about the pointer we are passing, so:
+On the other hand, with this approach, we only need the bounds of the immediate pointer since the bounds of anything that it points to will be stored in the lookup table.
 
 \begin{minted}[frame=single]{c}
 // Before
@@ -477,109 +441,108 @@ struct ReturnPointer{int **value, **base, **bound};
 struct ReturnPointer a;
 \end{minted}
 
-We only need the bounds of the immediate pointer since the bounds of anything that it points to will be stored in the lookup table.
-
-In terms of implementation, the duplicated functions returned the 'pointer return' object and code was added at each call site to extract the value, base and bound and to associate the value with the base and bound.
-
-\section{The Bounds Check Function}
-
-Two bounds check functions can be used, one in practice and one for debugging to allow greater analysis of the program.
-
-The first bounds check function is equivalent to the following code:
-
-\begin{minted}[frame=single]{c}
-void BoundsCheck(void *value, void *base, void *bound){
-    if(value == NULL){
-        printf("Null Pointer Dereference");
-        return;
-    } else if(base == NULL){
-        printf("No Bounds Set");
-        return;
-    } else if(value < base || value >= bound){
-        printf("Out of Bounds Pointer Dereference");
-        return;
-    }
-}
-\end{minted}
-
-This bounds check function allows differentiation between the cases of a null pointer dereference and an out of bounds dereference and additionally allows the programmer to analyse their program at runtime to determine how many pointer dereferences cannot be checked due to lack of bounds information - for example for pointers that are returned from externally defined functions.
-
-The optimized bounds and non-debug bounds check function is as follows:
-
-\begin{minted}[frame=single]{c}
-void BoundsCheck(void *value, void *base, void *bound){
-    if((base != NULL) & ((value < base) | (value >= bound)))
-        OnError();
-}
-\end{minted}
-
-\verb!OnError! is a function provided by the programmer.
-This optimized version is designed to be inlined and to provide as few jumps as possible (to prevent pipeline stalls).
+%\section{The Bounds Check Function}
+%
+%Two bounds check functions can be used, one in practice and one for debugging to allow greater analysis of the program.
+%
+%The first bounds check function is equivalent to the following code:
+%
+%\begin{minted}[frame=single]{c}
+%void BoundsCheck(void *value, void *base, void *bound){
+%    if(value == NULL){
+%        printf("Null Pointer Dereference");
+%        return;
+%    } else if(base == NULL){
+%        printf("No Bounds Set");
+%        return;
+%    } else if(value < base || value >= bound){
+%        printf("Out of Bounds Pointer Dereference");
+%        return;
+%    }
+%}
+%\end{minted}
+%
+%This bounds check function allows differentiation between the cases of a null pointer dereference and an out of bounds dereference and additionally allows the programmer to analyse their program at runtime to determine how many pointer dereferences cannot be checked due to lack of bounds information - for example for pointers that are returned from externally defined functions.
+%
+%The optimized bounds and non-debug bounds check function is as follows:
+%
+%\begin{minted}[frame=single]{c}
+%void BoundsCheck(void *value, void *base, void *bound){
+%    if((base != NULL) & ((value < base) | (value >= bound)))
+%        OnError();
+%}
+%\end{minted}
+%
+%\verb!OnError! is a function provided by the programmer.
+%This optimized version is designed to be inlined and to provide as few jumps as possible (to prevent pipeline stalls).
 
 \section{Setting pointer bounds}
 
-The two most common actions that cause a change in pointer bounds are detailed in the functions section above - \verb!malloc! and \verb!free!.
-For the former, the base and bound of the set pointer are set to the return value and the return value plus the parameter respectively.
-For the latter, the value is set to null.
+\paragraph{Malloc} 
+When a \verb!malloc! instruction is encountered, the fat pointer being assigned to has its value and base set to the return value, and its bound set to the base plus the argument to the malloc instruction (the size of the area of memory to be allocated).
 
-The following sections cover the other common situations in which bounds information for a pointer is changed.
 
-\subsection{Setting to constant string}
+\paragraph{Free}
+When a \verb!free! instruction is encountered, the argument is followed backwards to find the fat pointer it came from.
+The value of the fat pointer is set to null.
 
-LLVM IR displays a distinct pattern for the following code:
+\paragraph{Constant Strings}
+Constant strings are stored in the file text section of the LLVM IR file and have their length encoded in their type.
+The base and value of the pointer are set to the address of the constant string and the bound is set to the address plus the length of the string.
 
-\begin{minted}[frame=single]{c}
-char *username="george";
-\end{minted}
+%LLVM IR displays a distinct pattern for the following code:
+%
+%\begin{minted}[frame=single]{c}
+%char *username="george";
+%\end{minted}
+%
+%The constant string is stored in the file text section as a \verb!private unnamed_addr constant [Y x i8]! (where \verb!Y! is the length of the string, including null terminator).
+%The assignment is a \verb!store! instruction with the value being a GEP operator (which is different from a GEP instruction) to the start of the memory allocated to the string.
+%
+%Since setting to a constant string is a static operation - the string and its length are known at compile time, setting the bounds is also a static operation.
+%Bandage detects the type of the string (the constant-sized character array) and sets the bound equal to the base plus the size.
 
-The constant string is stored in the file text section as a \verb!private unnamed_addr constant [Y x i8]! (where \verb!Y! is the length of the string, including null terminator).
-The assignment is a \verb!store! instruction with the value being a GEP operator (which is different from a GEP instruction) to the start of the memory allocated to the string.
+\paragraph{Address-Of Operator}
+As with setting to constant strings, the base and value are set to the address of the variable, and the type information for the variable is used to determine the size and therefore the bound.
 
-Since setting to a constant string is a static operation - the string and its length are known at compile time, setting the bounds is also a static operation.
-Bandage detects the type of the string (the constant-sized character array) and sets the bound equal to the base plus the size.
+%\begin{minted}[frame=single]{c}
+%int b;
+%int *a=&b;
+%\end{minted}
+%
+%For this situation a more general, run-time method is used to detemine the size of the r-value.
+%A GEP is created to the type of the r-value, with its first operand being a null pointer (so the address calculation starts at the offset zero), and with its other operand specifying the second object of that type.
+%
+%This causes a calcuation, starting from offset zero, calculating the address of the second object of that type in a non-existant array.
+%This will return the size of the r-value.
+%As before, on non-ARM processors the GEP will be be reduced to a constant in further stages of compilation.
 
-\subsection{Setting to the address}
-
-\begin{minted}[frame=single]{c}
-int b;
-int *a=&b;
-\end{minted}
-
-For this situation a more general, run-time method is used to detemine the size of the r-value.
-A GEP is created to the type of the r-value, with its first operand being a null pointer (so the address calculation starts at the offset zero), and with its other operand specifying the second object of that type.
-
-This causes a calcuation, starting from offset zero, calculating the address of the second object of that type in a non-existant array.
-This will return the size of the r-value.
-As before, on non-ARM processors the GEP will be be reduced to a constant in further stages of compilation.
-
-\subsection{Setting to another pointer}
-
-Setting a pointer equal to another pointer is simple, the bounds information of the r-value is set to that of the l-value, as is the value of the pointer.
+\paragraph{Pointer To Pointer Assignment}
+On pointer to pointer assignment, the base and bounds of the r-value are transferred to the l-value along with the value of the pointer.
 Occasionally, pointer casts may be need to be inserted for typing (as the bounds are typed equal to the pointer, so if the pointer is cast, so must the bounds).
 
-\subsection{Setting to pointer arithmetic}
-
-The bounds information is modified as above, though this time the value of the r-value fat pointer has arithmetic performed on it (in the form of GEP instructions) before being stored in the value of the l-value fat pointer.
-
+\paragraph{Pointer Arithmetic}
+The results of pointer arithmetic are derived from one pointer and one integer type.
+The base and bound of the pointer type are carried from the pointer r-value to the l-value, while the value of the pointer is set to the result of the arithmetic.
 At this point, no bounds checks are performed, it is perfectly legal for a pointer to have arithmetic performed on it that leads it to go out of bounds and later to have further arithmetic that brings it back into bounds.
 
-\subsection{Setting to NULL}
-
+\paragraph{Null}
 Finally, pointers are frequently set to be equal to the null constant.
 In this case, the bounds information is not changed, only the value.
-The reason for this being that a null pointer is flagged by bounds checking before the bounds information is touched and therefore two additional assignments would add unessecary overhead.
+The reason for this being that a null pointer is flagged by bounds checking before the bounds information is touched and therefore two additional assignments would add unnecessary overhead.
 
 \section{Binary Compatibility}
+
 There are three different entities that Bandage must pay attention to in regards of binary compatibility.
 These are functions, structs and external variables.
 
-For functions, Bandage follows a rule of ``if I can see its definition, I am allowed to modify it''.
-For any function definition it creates a transformed duplicate while retaining the original.
-This allows a transformed library to be used with untransformed code as the original functions remain.
+\paragraph{Functions}
+For functions Bandage follows a rule of ``if I can see its definition, I am allowed to modify it''.
+For any function definition it creates a transformed duplicate while retaining the original this allows a transformed library to be used with untransformed code as the original functions remain.
 It would be a useful extra step to modify the untransformed version of the function to be a wrapper to the transformed version, inserting null bounds and allowing it to be internally bounds checked, however the current method means that the performance overheads of bounds checking are not imposed on programs that were not created with bounds checking in mind.
-
 For any functions that Bandage cannot see the definition of, it leaves untouched, unless that function is named in the function file explained earlier.
 
+\paragraph{Structs}
 Structs are a bit different, since they are fully defined in every source file they are used in.
 To determine which structs it is allowed to modify, Bandage looks at the functions again.
 If a struct is used in a function that is defined, but not declared (taking into account the functions in the function file), it is counted as external and not transformed.
@@ -587,13 +550,14 @@ If a struct is used in a function that is defined, but not declared (taking into
 This can lead to a case where the same struct is used internally to a project and also in the libraries included in that project but the struct never crosses the internal/ external boundary.
 In this case, two versions of the struct will exist in the final binary, the transformed one used internally and the raw one used externally.
 
+\paragraph{Extern Variables}
 Finally, extern variables must be taken into account.
 External variables are transformed in a deterministic manner, allowing the linker to link the transformed versions.
-Bandage's fat pointer implementation does not allow the mixing of transformed and untransformed external variables, but its lookup table implementation does, however such a mix is probably indicative of bad coding practices.
-\section{CCured Analysis}
+Bandage's fat pointer implementation does not allow the mixing of transformed and untransformed external variables.
+\section{Pointer Analysis}
 
-In the CCured paper, pointers are classified into three qualifiers: \textit{SAFE}, \textit{SEQ} and \textit{DYN}.
-Pointers are represented by a tuple, containing the original allocation of the pointer (the \verb!alloca! instruction) and the number of dereferences applied, this way in the analysis, a multi-level pointer is split up so that each level can be classified differently.
+My pointer analysis is based on the CCured analysis.
+In CCured, pointers are classified into three qualifiers: \textit{SAFE} where pointers are only ever assigned and dereferenced, \textit{SEQ} where pointers have arithmetic performed on them and \textit{DYN} for any other pointers.
 
 \subsection{Constraint Collection}
 
@@ -609,35 +573,27 @@ The instructions are iterated through, collecting all pointer allocations.
 Each function is examined and if the return value is a pointer, the pointer returned is associated with the function.
 Similarly the function's parameters are associated with the function and their position in the parameter list.
 
-Every store to a pointer is then examined, with the following actions:
-
-\begin{itemize}
-\item If the r-value is a pointer, a \textit{SetToPointer} constraint is created.
-\item If the r-value is a function, a \textit{SetToFunction} constraint is created.
-\item If the r-value is a cast from an integer, a \textit{IsDynamic} constraint is created.
-\item If the r-value is a constant that isn't null, a \textit{IsDynamic} constraint is created.
-\end{itemize}
-
+Pointer stores are examined, generating the \textit{SetToPointer}, \textit{SetToFunction} and \textit{IsDynamic} constraints.
+The \textit{IsDynamic} constraint is used when a pointer is cast from an integer or a constant that is not null.
 Every pointer that has a \verb!GEP! performed on it (that isn't a struct type) has the \textit{PointerArithmetic} constrain created.
 
 \subsection{Constraint Solving}
 
-The constraints used in the CCured-like analysis are quite simple and can be solved with a linear process.
-A map of pointers (the allocation and dereference level pair) to types is created and the following sequence is followed:
+The constraints used in this analysis are quite simple and can be solved with a linear process.
 
 \begin{enumerate}
 \item All pointers that have the \textit{IsDynamic} constraint are set to the \textit{DYN} qualifier.
 \item All \textit{SetToFunction} constraints are transformed to \textit{SetToPointer} constraints with the r-value being set to the pointer associated with that function.
-\item All \textit{SetToPointer} constraints where the r-value and the l-value are of different types have both l-value and r-value set to \textit{DYN} qualifier (this constraint is specified in the CCured-paper, though it seems a bit strong to my, surely only the l-value need be set to \textit{DYN}).
+%\item All \textit{SetToPointer} constraints where the r-value and the l-value are of different types have both l-value and r-value set to \textit{DYN} qualifier (this constraint is specified in the CCured-paper, though it seems a bit strong to my, surely only the l-value need be set to \textit{DYN}).
 \item All pointers with the \textit{IsArithmetic} constraint are set to the \textit{SEQ} qualifier.
 \item The following is repeated until no further changes are made:
     \begin{enumerate}
         \item For each \textit{SetToPointer} constraint:
         \begin{itemize}
-            \item If either l-value or r-value are \textit{DYN}, set both to \textit{DYN}.
-            \item If the l-value is \textit{SEQ} and the r-value is \textit{SAFE}, set the r-value to \textit{SEQ}
+            \item If the r-value is \textit{DYN}, set the l-value to \textit{DYN} since the l-value could transitively be set to anything the \textit{DYN} r-value is set to.
+            \item If the l-value is \textit{DYN}, set the r-value to \textit{DYN} so the l-value can gain bounds information from the r-value.
+            \item If the l-value is \textit{SEQ} and the r-value is \textit{SAFE}, set the r-value to \textit{SEQ} so the l-value can gain bounds information from the r-value.
         \end{itemize}
-        \item For each pointer (allocation and level pair) that is \textit{DYN}, set all pointers from the same allocation with a greater level to also be \textit{DYN}.
     \end{enumerate}
 \end{enumerate}
 
@@ -674,6 +630,6 @@ A map of pointers (the allocation and dereference level pair) to types is create
 \section{Arrays}
 
 C provides no safety for constant size arrays.
-For completeness, both the Bandage and SoftBound passes implement bounds checking on array access.
-
-This is made almost trivial because the type system carries the bounds of arrays, and therefore in the transformation pass the array access can be modified by looking at the type of the pointer operand to the GEP instruction (used to calculate the address of the requested array entry).
+For completeness, both transformations implement bounds checking on array access.
+This is made trivial because the type system carries the bounds of arrays and the variable always points to the base. 
+Therefore in the transformation passes the array access can be modified by looking at the type of the pointer operand to the GEP instruction, giving the type of the array and the index operand, giving the requested offset.

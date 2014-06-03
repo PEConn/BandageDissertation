@@ -1,4 +1,137 @@
+\definecolor{bblue}{HTML}{4F81BD}
+\definecolor{rred}{HTML}{C0504D}
+\definecolor{ggreen}{HTML}{9BBB59}
+\definecolor{ppurple}{HTML}{9F4C7C}
+\newcommand*\rot{\rotatebox{90}}
+\newcommand{\xmark}{\ding{55}}
+
+This section starts with the novel framework for evaluating pointer-safety systems.
+I draw up a list of criteria upon which they can be judged and comment on the patterns across the related work.
+
+In order to place Bandage within the framework, I evaluated the resulting binaries from the tranformations for performance and binary size, showing them to be comparable with the current state of the art.
+I then benchmarked the transformations themselves to show it runs in a reasonable time and would be capable of scaling to real life projects.
+
+In order to investigate the interactions with optimization passes, I performed further benchmarks in the presence of LLVM's O1 optimizations.
+Finally, in order to show the security benefit that can be gained from the additional robustness to pointer-based errors that Bandage can provide, I reiterate through the examples from the Background section, commenting on Bandage's successes and short-falls.
+
+\section{Pointer Safety System Evaluation Framework}
+
+The following factors are taken into account when assessing a pointer safety system:
+
+\subsection{Spatial Safety}
+
+\paragraph{Invalid Memory Accesses} are important to detect as they are never intentional, definitely bugs are potential security vulnerabilities.
+Some systems, such as Baggy Bounds checking fail to fulfill this criterion because they only aim to prevent dangerous invalid memory accesses (such as those to a different object).
+
+\paragraph{Incorrect Object Accesses} are when a pointer current points to an object that it was not derived from.
+The Heapmon and Address Sanitizer systems fail to meet this criterion because they only track valid and invalid memory, and do not map between pointers and the memory that is valid for that pointer.
+Address Sanitizer does use techniques to make the likelihood of this happening very small (by adding poisoned areas around objects).
+
+\paragraph{Checking all variables} can be achieved through one of two methods, either by whole program analysis which lowers compatibility or by tracking calls to malloc and free in the compiled binary.
+The HardBound, SoftBound and Bandage systems fail to provide this because they do not require recompilation of included libraries, and therefore do not have bounds information for pointers from them, unless the entire program is recompiled.
+Baggy Bounds checking only checks the bounds of strings as an optimization strategy.
+
+\subsection{Temporal Safety}
+
+\paragraph{Free'd Memory Accesses} prevents dangling pointers and double frees.
+I implemented a very simple case of this in the Bandage system, enough to catch simple bugs, however it is not complete, because when a copy of a pointer is freed, the original is not marked as invalid.
+It is implemented in Cyclone through restrictions on the language and checks at compile time.
+It is trivial to implement in systems that track valid memory areas, but not their associated pointers, such as Heapmon and Address Sanitizer.
+
+\paragraph{Dead Stack Memory Accesses} are a similar case to that above, except the memory is released when the function returns instead of through an explicit function call.
+As an aspect of temporal pointer safety, it is outside the scope of bandage.
+
+\subsection{Binary Compatibility}
+
+\paragraph{Program Recompilation} is required by systems that need to add hooks to the code or change its memory layout.
+Most systems require program recompilation and there is a limit to the protection that can be achieved without seeing what is going on inside the program.
+Body Armor for Binaries gets around this reverse engineering the program file to try to reconstruct symbol tables and such.
+
+\paragraph{Whole Program Recompilation} requires the program and all of its included libraries to be compiled with the system.
+This is linked with the \textbf{Checking all variables} criteria as a key trade-off between completeness and compatibility, especially with systems that can be run without whole program recompilation, but provide far less security when they do so.
+
+\paragraph{Non-conforming Code Rewrite} is required by the Jones and Kelly system which overwrites the results of pointer arithmetic that exceeds the referent to the constant \verb!-2!.
+This would be a valid transformation for programs that adhered strictly to the C standard, but it was found that 60\% of programs tested relied on undefined behaviour, that this broke \cite{ruwase2004practical}.
+
+\paragraph{Code Rewrite} is the poorest level of compatibility as all programs will require some form of modification to get the system to work with them.
+Cyclone requires this, due to it being a dialect of C and not a system to be run on C itself.
+
+\begin{table}
+\centering
+\begin{tabular}{l|cccccccccc}
+Safety Guarantee & \rot{Bandage} & \rot{CCured} & \rot{SoftBound} & \rot{HardBound} & \rot{Jones \& Kelly} & \rot{Cyclone} & \rot{Heapmon} & \rot{Address San.} & \rot{Baggy Bounds} & \rot{MPX} \\
+\hline
+Access to invalid memory        &&&&&&&\xmark&&\xmark& \\
+Access to incorrect object      &&&&&&&\xmark&\xmark&&\xmark\\
+Checks all variables            &\xmark&&\xmark&\xmark&\xmark&&&&\xmark&\xmark\\
+\hline
+Access to free'd memory         &*&\xmark&\xmark&\xmark&&&&&&\xmark\\
+Access to dead stack memory     &\xmark&\xmark&\xmark&\xmark&&&\xmark&\xmark&&\xmark\\
+\hline
+Code recompilation          &\xmark&\xmark&\xmark&\xmark&\xmark&\xmark&&\xmark&\xmark&\xmark\\
+Library recompilation       &&\xmark&&\xmark&&\xmark&&&&\xmark\\
+Code must be standardized   &&&&&\xmark&&&&&\\
+Code rewrite                &&&&&&\xmark&&&&\\
+\end{tabular}
+\caption{Safety guarantees for evaluated pointer safety systems. A cross indicates the guarantee is \textbf{not} provided.}
+\label{fig:TickTable}
+\end{table}
+
+The evaluated systems are marked according to the previous criteria in Table \ref{fig:TickTable}.
+
+\subsection{Runtime Overhead}
+
+\paragraph{Runtime Overhead} is the current leading method for comparing pointer-safety systems, probably due to its quantitative and easy to measure nature.
+It is important, and therefore I've included it, however as can be seen in Table \ref{fig:Others}, current systems perform comparably.
+
+\subsection{Extra Requirements}
+
+\paragraph{Hardware Support} may be required by the system.
+This likely signifies that the system will not be very compatible - a full program analysis is likely to be required for full coverage.
+Additionally the cost of the new hardware must be factored in, making it unrealistic for projects such as those designed for widespread use on personal computers.
+
+\paragraph{Additional Threads} could be an issue if the target program is desired to be run on less powerful systems.
+An additional thread running may require more resources that aren't made explicit in the benchmarks.
+
+I have summarized the extra requirements and runtime overheads imposed by each tool in Table \ref{fig:Others}.
+
+Together these three graphs provide a full picture of the relative strengths and weaknesses of these tools, allowing programmers to make an informed decision over which is the best for the task at hand.
+A programmer with a non-real time legacy system could start by choosing Heapmon and accept the runtime overhead as an acceptable price for the lack of compilation time overhead.
+Alternatively a programmer looking to write a secure system from scratch would be well advised to use Cyclone (provided the garbage collector isn't an issue).
+
+\begin{table}
+\centering
+\begin{tabular}{l|r|r}
+System & Runtime Overhead & Extra Requirements \\
+\hline
+Bandage             &Up to 250\%&\\
+CCured              &Up to 250\%&\\
+SoftBound           &Up to 350\%&\\
+HardBound           &Up to 25\%&Hardware\\
+Jones \& Kelly      &Not Reported&\\
+Cyclone             &Up to 250\%&Garbage Collector\\
+HeapMon             &Up to 450\%&Extra Thread\\
+Address Sanitizer   &Typically 200\%&\\
+Baggy Bounds        &Up to 230\%&\\
+MPX                 &None Available&Hardware\\
+\end{tabular}
+\caption{Runtime and extra requirements of evaluated pointer safety systems}
+\label{fig:Others}
+\end{table}
+
 \section{Transformed Code Performance}
+
+The following benchmarks were carried out on an 8 core, 64bit, 3.6GHz Intel Xeon CPU, running FreeBSD 10.0.
+In addition to the benchmarks, Bandage was developed using a suite of 54 tests, including a few complex tests along with unit tests for:
+
+\begin{itemize}
+\item Array operations
+\item Pointer operations
+\item Function boundary transitions
+\item Compatibility with C libraries
+\item Correct identification of pointers for the analysis pass.
+\end{itemize}
+
 \subsection{Microbenchmarks}
 
 A selection of tailored micro-benchmarks were created to investigate the effects of the transformation on individual parts of code.
@@ -13,7 +146,7 @@ int y=malloc(sizeof(int));
 x=*y;
 \end{minted}
 
-As \verb!y! is recognised as a safe pointer, no bounds checking will be carried out, however at the moment the variable is not marked as \verb!not-NULL!, therefore a null check is performed.
+As \verb!y! is recognised as a safe pointer, no bounds checking will be carried out, however a null check is performed.
 This null check incurs an overhead of \verb!4.6%!.
 
 If there null check were omitted, the only overhead of the fat pointer approach would be the load required to retrieve the fat pointer value.
@@ -30,14 +163,12 @@ x=y[0];
 x=*y;
 \end{minted}
 
-By using array addressing on the pointer, the CCured analysis detects \verb!y! as a pointer that has arithmetic done on it, and is therefore not \textit{SAFE}.
+By using array addressing on the pointer, the pointer analysis detects \verb!y! as a pointer that has arithmetic done on it, and is therefore not \textit{SAFE}.
 Therefore the pointer dereference will contain the full bounds check, which was found to incur an overhead of \verb!52%!.
 
 The bounds check function used was complex, first it checked if the value was null, then if the base was null (signifying a pointer of type \verb!NoBounds!), and finally if the value were within the base and bound.
-This could be simplified.
 
 \subsubsection{Pointer Allocation}
-
 
 \begin{minted}[fontsize=\footnotesize,frame=single]{c}
 // Setup
@@ -47,7 +178,6 @@ void Fun2(){int *a,*b,...,*j;}
 
 Many calls were made to \verb!Fun1! and to \verb!Fun2! and the difference in execution time was measured.
 This benchmark needed to be done this way because memory used by an allocation is not free until the scope it is allocated in is left, therefore if the allocation were performed in a loop, the stack would run out of space.
-
 This was found to produce no measurable difference.
 
 \subsubsection{Pointer Assignment}
@@ -60,7 +190,6 @@ a=b;
 \end{minted}
 
 There is no bounds checking on this code as no pointers are dereferenced, its purpose is to observe the overhead of copying three pointers instead of one.
-
 This was found to produce no measurable difference.
 
 \subsubsection{Following a Linked List}
@@ -79,7 +208,7 @@ This is not surprising considering that each lookup requires a look through each
 The interesting result is that the runtime seems to increase linearly with the list size, implying a close to $O(1)$ overhead for hashtable lookup.
 
 With the longest linked list length, the MemTable takes five times as long as with no bounds checking and three times longer than bandage.
-The MemTable lookup consists of pointer arithmetic and an access to the \verb!mmap!ed area, whereas a fat pointer lookup consists of a \verb!GEP! to the object.
+The MemTable lookup consists of pointer arithmetic and an access to the \verb!mmap!ed area, whereas a fat pointer lookup consists of an immediate offset and a load.
 A potential reason the MemTable approach takes longer than fat pointers is that an iteration for the fat pointer contains a load which fetches both the next pointer value and its bound at the same time, and they are store contiguously in memory.
 An iteration with MemTables consists of a lookup to find the next pointer, and then a lookup in the table to find the bounds for that pointer, requiring two lookups to two areas of memory that are likely very far apart.
 
@@ -87,31 +216,33 @@ However, since the linked list was allocated in order, each element is likely ar
 Therefore, since the MemTable uses the pointer's address in memory as the index to that pointer's information, the bounds information associated with each linked list item will also be arranged sequentially in memory, and quite close together, giving very good spatial locality for the caches to take advantage of.
 
 A final cause of the slowdown could be that since the table lookup functions are compiled separately and linked with the code that uses them it prevents them from being inlined, resulting in more jumping around.
- linear
 
 \subsection{Olden Benchmarks}
 
 The olden suite of benchmarks are designed to be very pointer operation heavy \cite{olden}.
+Due to the complex nature of the transformation (especially the fat pointer transformation), some of the olden benchmarks are not transformed correctly, and fail to run (\verb!em3d!, \verb!health!, \verb!bh!, \verb!mst!).
+This is due to issues with the implementation of Bandage, and not due to limits in the system.
+
+Most of the benchmarks center around constructing binary trees (each node contains pointers to two other nodes, and a value), for example the treeadd benchmark constructs a tree and performs a depth-first search to accumulate all the values and the bisort benchmark performs a binary merge at each node to sort the tree.
+The results of the benchmarks are shown in Table \ref{tab:OldenRuntime} and Figure \ref{fig:OldenRuntime}.
+These results show performances comparable to those of the state of the art research papers, with the fat pointer implementation not exceeding 200\% of the original runtime in any benchmark.
+The runtimes for the lookup table approach were measured with the memtable implementation, though this still produced a greater overhead (if in part due to the inability to inline the lookup functions as they were included from a different library).
 
 \begin{table}
 \centering
 \begin{tabular}{|lrr|}
 \hline  Benchmark & Fat Pointer Overhead & Lookup Table Overhead\\
 \hline
-Bisort      & \verb!71% +/- 1%!     & \verb!164% +/-  1%! \\
-Perimeter   & \verb!35% +/- 7%!     & \verb!294% +/- 11%! \\
-Power       & \verb!46% +/- 1%!     & \verb!101% +/-  1%! \\
-Treeadd     & \verb!49% +/- 4%!     & \verb!253% +/-  6%! \\
-Tsp         & \verb!95% +/- 2%!     & \verb!211% +/-  3%! \\
+Bisort      & \text{$71\% \pm 1\%$}     & \text{$164\% \pm  1\%$} \\
+Perimeter   & \text{$35\% \pm 7\%$}     & \text{$294\% \pm 11\%$} \\
+Power       & \text{$46\% \pm 1\%$}     & \text{$101\% \pm  1\%$} \\
+Treeadd     & \text{$49\% \pm 4\%$}     & \text{$253\% \pm  6\%$} \\
+Tsp         & \text{$95\% \pm 2\%$}     & \text{$211\% \pm  3\%$} \\
 \hline
 \end{tabular}
 \caption{Fat pointer and lookup table overheads compared to uninstrumented runtime for the Olden benchmarks}
 \label{tab:OldenRuntime}
 \end{table}
-\definecolor{bblue}{HTML}{4F81BD}
-\definecolor{rred}{HTML}{C0504D}
-\definecolor{ggreen}{HTML}{9BBB59}
-\definecolor{ppurple}{HTML}{9F4C7C}
 \begin{figure}
 \centering
 \begin{tikzpicture}
@@ -182,88 +313,35 @@ Tsp         & \verb!95% +/- 2%!     & \verb!211% +/-  3%! \\
 %
 %Under Bandage, tree construction introduced no overhead but application of the travelling salesman problem increased runtime by \verb!103%!.
 
-\subsubsection{Other Benchmarks}
+\subsubsection{Failing Benchmarks}
 
 Due to the complex nature of the transformation (especially the fat pointer transformation), some of the olden benchmarks are not transformed correctly.
 
 %\subsubsection{Type Coercion}
 
-One of reasons that the benchmarks fail to run is Type Coercion.
-In some circumstances, the LLVM IR produced by clang coerces the types of parameters to functions.
-For example, the \verb!em3d! benchmark contains the following function:
+%One of reasons that the benchmarks fail to run is Type Coercion.
+%In some circumstances, the LLVM IR produced by clang coerces the types of parameters to functions.
+%For example, the \verb!em3d! benchmark contains the following function:
+%
+%\begin{minted}[fontsize=\footnotesize,frame=single]{c}
+%typedef struct node_t{
+%    double value;
+%} node_t;
+%
+%typedef struct graph_t{
+%    node_t *e;
+%    node_t *h;
+%} graph_t;
+%
+%void print_graph(graph_t graph){...}
+%\end{minted}
+%
+%Instead of the struct being passed to the function as a whole struct, it is split into its two members and the function in IR actually takes two \verb!node_t *!s as its parameters, which are then put into a anonymous type of \verb!{node_t *, node_t *}! which is finally bitcast into a \verb!graph_t!.
 
-\begin{minted}[fontsize=\footnotesize,frame=single]{c}
-typedef struct node_t{
-    double value;
-} node_t;
+\section{Compile-time Performance}
 
-typedef struct graph_t{
-    node_t *e;
-    node_t *h;
-} graph_t;
-
-void print_graph(graph_t graph){...}
-\end{minted}
-
-Instead of the struct being passed to the function as a whole struct, it is split into its two members and the function in IR actually takes two \verb!node_t *!s as its parameters, which are then put into a anonymous type of \verb!{node_t *, node_t *}! which is finally bitcast into a \verb!graph_t!.
-
-\subsection{No Checks}
-
-Bandage was modified to not insert bounds or null checks on pointer dereference, and the benchmarks were run again.
-This provided a measurement of the overhead introduced by using fat pointers (and therefore dealing with the extra loads, pointer wrapping and stripping and cache overhead) and by propegating the bounds information.
-The overheads introduced here allow evaluation of the bounds checking strategy separate from those overheads and also provides a theoretical lower bound on what an optimization to the checking strategy can achieve.
-
-\begin{table}
-\centering
-\begin{tabular}{|l|r|r|}
-\hline \textbf{Olden Benchmark} & \textbf{O0 Overhead} & \textbf{O3 Overhead}\\
-\hline Bisort       &   7.50\%   &   3.44\% \\
-\hline Mst          & xxxxxx\%   & xxxxxx\% \\
-\hline Perimeter    & -18.62\%   & -43.49\% \\
-\hline Power        & xxxxxx\%   & xxxxxx\% \\
-\hline Treeadd      &  28.75\%   &  17.11\% \\
-\hline Tsp          &   7.29\%   &  28.57\% \\
-\hline
-\end{tabular}
-\caption{Runtime overhead on olden benchmarks when no bounds or null checks are inserted}
-\label{tab:NoChecks}
-\end{table}
-
-The runtime overheads are shown in Table \ref{tab:NoChecks}, for comparison when the code was run without optimization and when the code was run with O3.
-It is gratifying to see that in most of the cases, O3 optimization reduces the gap between uninstrumented and instrumented code.
-
-\subsubsection{Tsp interfering with Optimization}
-
-Looking at the runtime breakdown of the Tsp benchmark gives us the timings in Table \ref{tab:TspNoChecks}.
-It can be seen that large discrepancy in optimization speedups arises during the set of O1 optimizations.
-
-\begin{table}
-\centering
-\begin{tabular}{|l|r|r|}
-\hline  \textbf{Optimization Level}  &   \textbf{Raw} &   \textbf{Bandage} \\
-\hline  O1  &   20.51\%  &   -2.33\%  \\
-\hline  O2  &   26.92\%  &   13.95\%  \\
-\hline  O3  &   26.92\%  &   13.95\%  \\
-\hline
-\end{tabular}
-\caption{Speedup relative to O0 optimization for raw and bandage transformed Tsp benchmark.}
-\label{tab:TspNoChecks}
-\end{table}
-
-In order to investigate this further, O1 optimization was repeated multiple times on the uninstrumented code, each time with a specific optimization disabled, to determine which was responsible for the \verb!20%! speedup.
-Each of the resulting binaries displayed speedups of \verb!17%! or more, suggesting that no single optimization was responsible for the speedup.
-It was found however, when the \verb!instcombine! optimization was omitted, the speedup for the unoptimized binary was \verb!25%!, indicating that it actually slows the resulting program.
-
-The same process was repeated on the instrumented IR.
-It was found that with each optimization pass specified manually, a speedup of \verb!25\%! is achieved - similar to that of the raw binary, but when specified through the O1 flag, the speedup is negligable.
-
-However, this process also identified the O1 optimizations that were the most responsible for was responsible for the speedup.
-Without the \verb!instcombine! or the \verb!sroa! optimizations, the speedup dropped to \verb!1%!.
-Additionally, the absence of the \verb!early-cse! optimization caused the speedup to drop to \verb!17%!.
-
-
-\section{Transformation Performance}
-
+I timed the compilation for the Olden benchmarks for both transformations.
+The results, shown in Figure \ref{fig:CompTime} show that the fat pointer transformation is usually quicker than the lookup table transformation, but both transformations are always in the same order of magnitude of raw compilation and frequently take less than twice its length.
 \begin{figure}
 \centering
 \begin{tikzpicture}
@@ -301,6 +379,9 @@ Additionally, the absence of the \verb!early-cse! optimization caused the speedu
 \caption{Compilation Time for Olden Benchmarks}
 \label{fig:CompTime}
 \end{figure}
+
+I measured the resulting binaries, finding that the transformation produced a greater increase in binary size than in compilation time (Figure \ref{fig:BinSize}).
+The binary sizes for both of the transformations were both quite similar, indicating that the primary increase in binary size was due to the common operations shared between the transformations, such as calculating bounds and calling the bounds checking functions.
 
 \begin{figure}
 \centering
@@ -350,25 +431,139 @@ All of the optimizations used in O1 optimization were run 10 times and only thos
 Since the stated optimizations were omitted, a beneficial optimization would give a negative value in the table - showing that its omission caused the resulting binary to take longer to execute.
 The table shows that most optimizations give a negative result when applied to the fat pointer code.
 
+%\begin{table}
+%\centering
+%\begin{tabular}{|lrr|}
+%\hline Omitted Optimization & Raw Speedup & Fat Pointer Speedup \\
+%\hline
+%early-cse   &   \verb!-3.30%! &   \verb!22.29%!   \\
+%instcombine &   \verb!5.48%!  &   \verb!7.56%!    \\
+%loop-rotate &   \verb!-1.28%! &   \verb!9.94%!    \\
+%simplifycfg &   \verb!-2.47%! &   \verb!-5.75%!   \\
+%sroa        &   \verb!0.23%!  &   \verb!7.45%!    \\
+%\hline
+%\end{tabular}
+%\caption{Performance Differences on the Tsp benchmark with selection optimizations disabled}
+%\label{tab:Opts}
+%\end{table}
+
 \begin{table}
 \centering
-\begin{tabular}{|lrr|}
-\hline Omitted Optimization & Raw Speedup & Fat Pointer Speedup \\
+\begin{tabular}{|lrrrr|}
+\hline &   sroa    &   loop-rotate &   loop-unroll &   instcombine \\
 \hline
-early-cse   &   \verb!-3.30%! &   \verb!22.29%!   \\
-instcombine &   \verb!5.48%!  &   \verb!7.56%!    \\
-loop-rotate &   \verb!-1.28%! &   \verb!9.94%!    \\
-simplifycfg &   \verb!-2.47%! &   \verb!-5.75%!   \\
-sroa        &   \verb!0.23%!  &   \verb!7.45%!    \\
+bisort&\verb!19.06%!&\verb!-0.90%!&\verb!0.34%!&\verb!5.13%!\\
+power&\verb!3.01%!&\verb!18.54%!&\verb!7.71%!&\verb!-0.33%!\\
+perimeter&\verb!17.46%!&\verb!1.62%!&\verb!-2.51%!&\verb!1.26%!\\
+treeadd&\verb!12.84%!&\verb!-0.30%!&\verb!0.93%!&\verb!-1.37%!\\
+tsp&\verb!-7.32%!&\verb!-9.56%!&\verb!-0.14%!&\verb!-7.97%!\\
 \hline
 \end{tabular}
-\caption{Performance Differences on the Tsp benchmark with selection optimizations disabled}
+\caption{Performance Differences on the Olden benchmarks with selection optimizations disabled}
 \label{tab:Opts}
 \end{table}
 
-\section{Security}
+\subsection{Scalar Replacement of Aggregates}
 
-\subsection{Buffer Overflow Attack}
+Scalar replacement of aggregates is a function based optimization that aims to separate aggregates, such as structs and arrays into simple components which can then be assigned to temporary values.
+These temporary values can then be the target of further optimizations such as register allocation and copy or constant propegation \cite[Chapter~12]{steven1997advanced}.
+
+One of the actions of this pass is to replace some member accesses with \verb!extractvalue! and \verb!insertvalue! instructions \cite{llvmSROA}, for example in the following code:
+
+\begin{minted}[fontsize=\footnotesize,frame=single]{llvm}
+%1 = alloca %FatPointer
+%2 = getelementptr %FatPointer* %Ptr, i32 0, i32 1
+store i32* null, i32** %2
+%3 = getelementptr %FatPointer* %Ptr, i32 0, i32 2
+store i32* null, i32** %3
+\end{minted}
+
+\begin{minted}[fontsize=\footnotesize,frame=single]{llvm}
+%1 = alloca %FatPointer
+%2 = insertvalue %FatPointer %Ptr, i32* null, 1
+%3 = insertvalue %FatPointer %Ptr, i32* null, 2
+\end{minted}
+
+The \verb!insertvalue! instruction returns a pointer to the updated struct, which is then used in further code.
+This simplifies the dependency graph, making each subsequent field assignment dependant on the last (so \verb!%3! depends on \verb!%2! which depends on \verb!%1!) instead of all dependant on the \verb!alloca! at the top.
+
+Usually with this pass, the \verb!alloca! instruction at the top is removed entirely, since where originally there was an \verb!alloca!, then a call to \verb!malloc! then an assignment to the allocated variable, there is now only a call.
+Unfortunately, both of the Bandage transformation passes rely on the \verb!alloca! instructions at the start of each function to gather the variables, so this pass cannot be performed before the transformation.
+The fat pointer pass transforms variables into their fat pointer versions at this point, and the lookup table pass registers them as local variables and generates their local bounds.
+
+Without this optimization, fat pointers as aggregate objects will be ineligable for many future transformations, which would be very detrimental considering the prevalence of pointers in many C programs.
+With it, for the purposes of future, function based optimzations a fat pointer can be seen as three separate scalar variables.
+
+\subsection{Instruction Combination}
+
+Instruction combination is a simple worklist driven algorithm that looks for opportunities to simplify the code, for example by replacing multiplications by powers of two with shift operations.
+Like with SROA, the primary benefit of this pass is that it allows future optimizations to be more effective.
+
+\subsection{Overhead due to Cache and Register Churn}
+
+Bandage was modified to not insert bounds or null checks on pointer dereference, and the benchmarks were run again.
+This provided a measurement of the overhead introduced by using fat pointers (and therefore dealing with the extra loads, pointer wrapping and stripping and cache overhead) and by propegating the bounds information.
+The overheads introduced here allow evaluation of the bounds checking strategy separate from those overheads and also provides a theoretical lower bound on what an optimization to the checking strategy can achieve.
+
+\begin{table}
+\centering
+\begin{tabular}{|l|r|r|}
+\hline \textbf{Olden Benchmark} & \textbf{O0 Overhead} & \textbf{O3 Overhead}\\
+\hline Bisort       &   7.50\%   &   3.44\% \\
+\hline Perimeter    & -18.62\%   & -43.49\% \\
+\hline Power        &  19.32\%   &  12.12\% \\
+\hline Treeadd      &  28.75\%   &  17.11\% \\
+\hline Tsp          &   7.29\%   &  28.57\% \\
+\hline
+\end{tabular}
+\caption{Runtime overhead on olden benchmarks when no bounds or null checks are inserted}
+\label{tab:NoChecks}
+\end{table}
+
+The runtime overheads are shown in Table \ref{tab:NoChecks}, for comparison when the code was run without optimization and when the code was run with O3.
+It is gratifying to see that in most of the cases, O3 optimization reduces the gap between uninstrumented and instrumented code.
+
+\subsubsection{Tsp interfering with Optimization}
+
+Looking at the runtime breakdown of the Tsp benchmark gives us the timings in Table \ref{tab:TspNoChecks}.
+It can be seen that large discrepancy in optimization speedups arises during the set of O1 optimizations.
+
+\begin{table}
+\centering
+\begin{tabular}{|l|r|r|}
+\hline  \textbf{Optimization Level}  &   \textbf{Raw} &   \textbf{Bandage} \\
+\hline  O1  &   20.51\%  &   -2.33\%  \\
+\hline  O2  &   26.92\%  &   13.95\%  \\
+\hline  O3  &   26.92\%  &   13.95\%  \\
+\hline
+\end{tabular}
+\caption{Speedup relative to O0 optimization for raw and bandage transformed Tsp benchmark.}
+\label{tab:TspNoChecks}
+\end{table}
+
+In order to investigate this further, O1 optimization was repeated multiple times on the uninstrumented code, each time with a specific optimization disabled, to determine which was responsible for the \verb!20%! speedup.
+Each of the resulting binaries displayed speedups of \verb!17%! or more, suggesting that no single optimization was responsible for the speedup.
+It was found however, when the \verb!instcombine! optimization was omitted, the speedup for the unoptimized binary was \verb!25%!, indicating that it actually slows the resulting program.
+
+The same process was repeated on the instrumented IR.
+It was found that with each optimization pass specified manually, a speedup of \verb!25\%! is achieved - similar to that of the raw binary, but when specified through the O1 flag, the speedup is negligable.
+
+However, this process also identified the O1 optimizations that were the most responsible for was responsible for the speedup.
+Without the \verb!instcombine! or the \verb!sroa! optimizations, the speedup dropped to \verb!1%!.
+Additionally, the absence of the \verb!early-cse! optimization caused the speedup to drop to \verb!17%!.
+
+
+
+\section{Conclusion}
+
+I have developed a system that by providing multiple and backends for pointer bounds checking and allowing the user to choose how much of their program they want to recompile creates four new points in the design space of pointer-safety systems presented earlier (shown again in Figure \ref{fig:Spectrum}).
+The lookup table transformation provides slightly more complete safety than the fat pointer transformation, since there are C operations that can strip the bounds information from a fat pointer (for example converting a pointer to an integer and back).
+Additionally Bandage can be used as a full program analysis, which would provide bounds for pointers received from libraries.
+
+\input{RelatedWork/Spectrum.tikz}
+
+
+The robustness provided by the Bandage system brings with it security benefits, for example it is capable of stopping the buffer-overflow attack detailed in the Background section:
 
 \begin{minted}[fontsize=\footnotesize,frame=single]{c}
 int main(void){
@@ -398,231 +593,14 @@ char *gets(char *buf)
     return (buf);
 }
 \end{minted}
-Bandage is capable of stopping the buffer overflow described in the Background section.
 The \verb!pass! array has its bounds information contained in its type in LLVM IR (as \verb![16xi8]!).
 As it is passed into \verb!gets! as a parameter it is converted into a function whose value is set to the address of the array.
 During the assignment, the bounds of the fat pointer are set correctly.
 Then as \verb!s! is set to \verb!buf!, the bounds information is transferred to \verb!s! and consulted on every dereference of \verb!s!.
 Therefore once the value of \verb!s! exceeds its base and bounds (that of the original variable \verb!pass!) an error is triggered.
 
-\subsection{Heartbleed}
+I used the Olden benchmarks to evaluate the performance overhead incurred by the Bandage transformations.
+This resulted in overheads comparable to current techniques.
+However, the Bandage transformation is highly modular, allowing it to be used in future research in the area, with more efficient transformations or more accurate analyses, potentially leading to it being used with lower overhead in the future.
 
-\begin{minted}[fontsize=\footnotesize,frame=single]{c}
-/* Read type and payload length first */
-hbtype = *p++;
-n2s(p, payload);
-pl = p;
-...
-unsigned char *buffer, *bp;
-int r;
-
-buffer = OPENSSL_malloc(1 + 2 + payload + padding);
-bp = buffer;
-...
-/* Enter response type, length and copy payload */
-*bp++ = TLS1_HB_RESPONSE;
-s2n(payload, bp);
-memcpy(bp, pl, payload);
-\end{minted}
-
-
-%\section{Misc}
-%\subsection{Fat Pointers}
-
-%Fat pointers add a storage overhead in the pointer itself, tripling its size to that of three pointers.
-%Fat pointers generate computational overhead on creation, where the base and bound must be set as well as the value and on dereference, where an extra load instruction must be added.
-%Finally fat pointers create computational overhead on bounds checking.
-
-%\subsection{Fat Pointers with CCured Analysis}
-
-%\subsubsection{Safe pointers as Raw or Fat Pointers}
-
-%When combining the CCured approach with the fat pointer analysis, there is a choice of how to implement pointers designated as SAFE - these are pointers that do not require bounds checks on dereference.
-%These SAFE pointers can either be implemented as a fat pointer but without bounds checking or kept as a raw pointer.
-
-%Implementing SAFE pointers as fat pointers but without the bounds checking brings consistency but keeps the overhead of fat pointers, which isn't used when SAFE pointers are kept as raw pointers.
-\subsection{Returning a Local Variable}
-
-\begin{minted}[fontsize=\footnotesize,frame=single]{c}
-int *ReturnLocalVariable(){
-    int x = 5;
-    return &x;
-}
-int main(){
-    int *a = ReturnLocalVariable();
-    *a = 12;
-    return 0;
-}
-\end{minted}
-
-Bandage, a system for enforcing spatial pointer safety cannot detect what is wrong with this example of a temporal pointer violation.
-The expression \verb!&x! is turned into a fat pointer, with value and base pointing to the address of \verb!x! and the bound pointing past its end.
-After return, it is still a perfectly valid fat pointer as the value is within the base and bound.
-Therefore on dereference, no error is triggered.
-\section{Pointer Safety System Evaluation Framework}
-
-The following factors are taken into account when assessing a pointer safety system:
-
-\begin{itemize}
-    \item \textbf{Spatial Safety Offered}
-    \begin{itemize}
-        \item Prevents access to unallocated memory.
-        \item Prevents access to incorrect referent object.
-        \item Prevents most access to unallocated memory or incorrect referent object.
-        \item Is able to check all memory accesses that require checking.
-        \item Checks most memory accesses that require checking.
-    \end{itemize}
-    \item \textbf{Temporal Safety Offered}
-    \begin{itemize}
-        \item Prevents access to free'd memory.
-        \item Prevents access to deallocated stack memory.
-    \end{itemize}
-    \item \textbf{Binary Compatibility}, the extent to which a program must be modified to run with the system. This is split into the following categories:
-    \begin{itemize}
-        \item The code must be recompiled.
-        \item All libraries must be recompiled.
-        \item Code must be written exactly to standard.
-        \item Code must be rewritten.
-    \end{itemize}
-    \item \textbf{Runtime Overhead}
-    \item \textbf{Extra requirements}
-    \begin{itemize}
-        \item Hardware primitives.
-        \item Additional threads.
-        \item Garbage collector.
-    \end{itemize}
-\end{itemize}
-
-\newcommand*\rot{\rotatebox{90}}
-\newcommand{\xmark}{\ding{55}}
-
-The evaluation of the systems with regards to safety offered is shown in Table \ref{fig:Safety}.
-
-\begin{table}
-\centering
-\begin{tabular}{l|cccccccccc}
-Safety Guarantee & \rot{Bandage} & \rot{CCured} & \rot{SoftBound} & \rot{HardBound} & \rot{Jones \& Kelly} & \rot{Cyclone} & \rot{Heapmon} & \rot{Address San.} & \rot{Baggy Bounds} & \rot{MPX} \\
-\hline
-Access to invalid memory        &&&&&&&\xmark&&\xmark& \\
-Access to incorrect object      &&&&&&&\xmark&\xmark&&\xmark\\
-Dangerous accesses              &&&&&&&&&&\\
-Checks all variables            &\xmark&&\xmark&\xmark&\xmark&&&&\xmark&\xmark\\
-%Checks most variables           &\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark&\checkmark\\
-\hline
-Access to free'd memory         &*&\xmark&\xmark&\xmark&&&&&&\xmark\\
-Access to dead stack memory     &\xmark&\xmark&\xmark&\xmark&&&\xmark&\xmark&&\xmark\\
-\end{tabular}
-\caption{Safety guarantees for evaluated pointer safety systems. A cross indicates the guarantee is \textbf{not} provided.}
-\label{fig:Safety}
-\end{table}
-
-Bandage fails to provide complete spatial safety as it takes pointers without bounds information from external code and cannot bounds check for them.
-Simply setting pointers to null after being passed to \verb!free! provides protected against a very small set of temporal safety bugs, though Bandage is not granted a full check in that section because copies of that \verb!free!'d pointer are not also updated.
-
-The ability to check all variables is present in two groups of systems.
-The first group, containing CCured and Cyclone require the entire program, including libraries to be recompiled (mentioned in the next section of the evaluation) in order to gain bounds information on all variables.
-The second group, containing Heapmon and Address Sanitizer do this by instrumenting \verb!malloc! and \verb!free!, which will be used by external code but without the object granularity - neither of these systems can detect a pointer access to the wrong referent.
-
-It is quite obvious from the table that spatial safety is often the primary concern, probably due to its wider application in vulnerabilities than temporal safety which more frequently causes benign bugs.
-
-\begin{table}
-\centering
-\begin{tabular}{l|cccccccccc}
-Compatibility requirements & \rot{Bandage} & \rot{CCured} & \rot{SoftBound} & \rot{HardBound} & \rot{Jones \& Kelly} & \rot{Cyclone} & \rot{Heapmon} & \rot{Address San.} & \rot{Baggy Bounds} & \rot{MPX} \\
-\hline
-Code recompilation          &\xmark&\xmark&\xmark&\xmark&\xmark&\xmark&&\xmark&\xmark&\xmark\\
-Library recompilation       &&\xmark&&\xmark&&\xmark&&&&\xmark\\
-Code must be standardized   &&&&&\xmark&&&&&\\
-Code rewrite                &&&&&&\xmark&&&&\\
-\end{tabular}
-\caption{Compatibilty requirements for evaluated pointer safety systems.}
-\label{fig:Compatibility}
-\end{table}
-
-Table \ref{fig:Compatibilty} covers the compatibility requirements for the evaluated systems.
-The presence of a requirement is marked by a cross in this table instead of a tick as in the last table as requirements are negative.
-It can be seen that the systems with the most ticks in Table \ref{fig:Safety} are also likely to have the most crosses in Table \ref{fig:Compatibility}, a trend explored in the next section.
-
-Finally, extra considerations and the runtime overheads imposed by each tool are listed in Table \ref{fig:Others} for completeness.
-Together these three graphs provide a full picture of the relative strengths and weaknesses of these tools, allowing programmers to make an informed decision over which is the best for the task at hand.
-A programmer with a non-real time legacy system could start by choosing Heapmon and accept the runtime overhead as an acceptable price for the lack of compilation time overhead.
-Alternatively a programmer looking to write a secure system from scratch would be well advised to use Cyclone (provided the garbage collector isn't an issue).
-
-\begin{table}
-\centering
-\begin{tabular}{l|r|r}
-System & Runtime Overhead & Extra Requirements \\
-\hline
-Bandage             &Up to 250\%&\\
-CCured              &Up to 250\%&\\
-SoftBound           &Up to 350\%&\\
-HardBound           &Up to 25\%&Hardware\\
-Jones \& Kelly      &-&\\
-Cyclone             &Up to 250\%&Garbage Collector\\
-HeapMon             &Up to 450\%&Extra Thread\\
-Address Sanitizer   &Typically 200\%&\\
-Baggy Bounds        &Up to 230\%&\\
-MPX                 &&Hardware\\
-\end{tabular}
-\caption{Runtime and extra requirements of evaluated pointer safety systems}
-\label{fig:Others}
-\end{table}
-
-\subsection{The completeness vs compatibility tradeoff}
-
-It can be seen in the previous section that the system providing the greatest completeness, Cyclone is also the one with the lowest compatibility as the entire program must be rewritten in Cyclone's dialect of C.
-Similarly, the system presenting the greatest compatibility, Heapmon has the most incomplete system, being unable to detect accesses to the wrong referent or even accesses just past the end of a valid area.
-
-To this end, Figure \ref{fig:Spectrum} was created to display the design space of current systems.
-Based on the evaluation criteria enumerated above, each system was given a numerical score between zero and one as a quantitative measure of its compatibility and its completeness.
-The numerical values aren't meant to be definitive, they were assigned to allow comparison between the systems.
-
-In the bottom right is the raw, untransformed \verb!C! language without any pointer safety system applied to it.
-Following to the left there is a large jump in completeness with the Heapmon system, which adds basic but still useful pointer safety checks.
-Further to the left are systems that require recompilation of the source code but not of included libraries.
-The Jones \& Kelly system comes next, with slightly less compatibility due to its strick adherence to the C standard.
-CCured, HardBound and MPX require the full system to be recompiled with binaries, and finally Cyclone provides the strongest pointer safety at the cost of rewriting the source code.
-
-\begin{figure}
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-    width=\textwidth,
-    xmin=0,
-    xmax=1,
-    ymin=0,
-    ymax=1,
-    xlabel={Compatibility},
-    ylabel={Completeness},
-    ]
-\addplot[
-    only marks,
-    mark=*,
-    mark options={fill=white},
-    visualization depends on=\thisrow{alignment} \as \alignment,
-    nodes near coords, % Place nodes near each coordinate
-    point meta=explicit symbolic, % The meta data used in the nodes is not explicitly provided and not numeric
-    every node near coord/.style={anchor=\alignment}, % Align each coordinate at the anchor 40 degrees clockwise from the right edge
-    ] table [% Provide data as a table
-     meta index=2 % the meta data is found in the third column
-     ] {
-        x       y       label       alignment
-        1       0       C           -40
-        0.2     0.8     Cyclone     -40
-        0.7     0.7     Bandage     -130
-        0.4     0.8     CCured      -40
-        0.7     0.6     SoftBound   -180
-        0.4     0.6     HardBound   0
-        0.6     0.6     J\&K        -40
-        0.9     0.4     Heapmon     90
-        0.7     0.55    AddrSan     180
-        0.7     0.5     Baggy       90
-        0.4     0.5     MPX         0
-    };
-\end{axis}
-\end{tikzpicture}
-\caption{The Completeness vs Compatibility Tradeoff in Pointer Safety Systems}
-\label{fig:Spectrum}
-\end{figure}
-
-It should be noted that this graph disregards the runtime overhead of the systems.
+Investigation into further optimizations revealed that the scalar replacement of aggregates pass was highly useful after the fat pointer optimization, as essentially made the value of the fat pointer available to all the optimizations that a raw pointer could take advantage of.

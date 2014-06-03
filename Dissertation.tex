@@ -32,7 +32,8 @@
 \usepackage{tikz}
 \usepackage{amsmath}
 \usepackage{minted}
-\usetikzlibrary{shapes, arrows}
+\usetikzlibrary{shapes, arrows, decorations.markings}
+
 
 %% START OF DOCUMENT
 \begin{document}
@@ -146,7 +147,7 @@ This is in contrast to work such as CCured which requires a full recompilation o
 
 Finally, Bandage will be used as the primary example in the classification of pointer-safety systems, providing a reference point to compare other systems with and a in depth study to highlight some subtleties in the taxonomy.
 
-\subsection{Outline}
+\section{Outline}
 
 This dissertation proceeds as follows, with a brief coverage of the background information required: the types of pointer safety, examples of vulnerabilities caused by lack of it and an overview of how pointers are dealt with in LLVM IR.
 A related work section follows, enumerating previous efforts to provide pointer safety, drawing together common themes between them and highlighting the position of this work.
