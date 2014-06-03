@@ -2,62 +2,63 @@
 \centering
 \begin{tikzpicture}
   \begin{axis}[ 
-      xlabel=Linked List Size,
-      ylabel=Runtime,
+      xtick scale label code/.code={},
+      xlabel=Linked List Size (1000 entries),
+      ylabel=Runtime (s),
       minor x tick num=1,
       grid=both,
 	  legend style={at={(0.5,0.95)}}
     ] 
     \addplot coordinates{
-		(	1000	,	0	)
-		(	2000	,	1	)
-		(	3000	,	2	)
-		(	4000	,	2	)
-		(	5000	,	2	)
-		(	6000	,	3	)
-		(	7000	,	3	)
-		(	8000	,	4	)
-		(	9000	,	5	)
-		(	10000	,	5	)
+		(	1	,	0	)
+		(	2	,	1	)
+		(	3	,	2	)
+		(	4	,	2	)
+		(	5	,	2	)
+		(	6	,	3	)
+		(	7	,	3	)
+		(	8	,	4	)
+		(	9	,	5	)
+		(	10	,	5	)
     }; 
 	\addlegendentry{Raw}
     \addplot coordinates{
-		(	1000	,	1	)
-		(	2000	,	1	)
-		(	3000	,	2	)
-		(	4000	,	4	)
-		(	5000	,	5	)
-		(	6000	,	6	)
-		(	7000	,	6	)
-		(	8000	,	7	)
-		(	9000	,	9	)
-		(	10000	,	9	)
+		(	1	,	1	)
+		(	2	,	1	)
+		(	3	,	2	)
+		(	4	,	4	)
+		(	5	,	5	)
+		(	6	,	6	)
+		(	7	,	6	)
+		(	8	,	7	)
+		(	9	,	9	)
+		(	10	,	9	)
     }; 
-	\addlegendentry{Bandage}
+	\addlegendentry{Fat Pointer}
     \addplot coordinates{
-		(	1000	,	16	)
-		(	2000	,	30	)
-		(	3000	,	47	)
-		(	4000	,	68	)
-		(	5000	,	78	)
-		(	6000	,	99	)
-		(	7000	,	119	)
-		(	8000	,	124	)
-		(	9000	,	143	)
-		(	10000	,	163	)
+		(	1	,	16	)
+		(	2	,	30	)
+		(	3	,	47	)
+		(	4	,	68	)
+		(	5	,	78	)
+		(	6	,	99	)
+		(	7	,	119	)
+		(	8	,	124	)
+		(	9	,	143	)
+		(	10	,	163	)
 	}; 
 	\addlegendentry{Hash Table}
     \addplot coordinates{
-		(	1000	,	5	)
-		(	2000	,	7	)
-		(	3000	,	10	)
-		(	4000	,	13	)
-		(	5000	,	15	)
-		(	6000	,	18	)
-		(	7000	,	20	)
-		(	8000	,	24	)
-		(	9000	,	26	)
-		(	10000	,	28	)
+		(	1	,	5	)
+		(	2	,	7	)
+		(	3	,	10	)
+		(	4	,	13	)
+		(	5	,	15	)
+		(	6	,	18	)
+		(	7	,	20	)
+		(	8	,	24	)
+		(	9	,	26	)
+		(	10	,	28	)
 	}; 
 	\addlegendentry{Memtable}
   \end{axis}

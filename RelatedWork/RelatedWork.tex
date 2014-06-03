@@ -1,24 +1,24 @@
 \input{RelatedWork/Spectrum.tikz}
 
 In this section I will review current work in the areas of pointer bounds checking and memory safety and place it in a spectrum with highly compatible on one side and highly complete on the other.
-This culminates with Figure \ref{fig:Spectrum} that maps out the design space.
+This culminates with Figure 3.1 that surveys the design space.
 
 Most pointer-safety systems fall into one of three categories, based on how they track valid areas of memory.
 In fat pointer systems, information about valid areas of memory is carried alongside the pointer, whereas in lookup table systems it is held seperate and associated with the pointer in some other method.
 Finally, some systems use a poison based approach, where they signify areas of memory as being invalid and throw an error when an invalid area of memory is accessed.
 
 \section{Systems requiring code rewrite}
-Starting on the highly complete but poorly compatible end of the spectrum is Cyclone \cite{jim2002cyclone}, which is in fact a separate dialect of C.
+Starting on the highly complete but poorly compatible end of the spectrum is Cyclone \cite{jim2002cyclone}, which is a separate dialect of C.
 Cyclone allows the programmer to write in a C-like language that is designed to prevent buffer overflows.
 It does this by imposing restrictions, such as limiting pointer arithmetic and providing extensions, such as a never-null pointer type.
 While some of these extensions are automatic, the programmer must make use of most of them explicitly which required between 0\% and 46\% of lines of code to be changed in the corpus tested.
 
 Arguably other languages can be included in at this end of the spectrum. 
-For example, Rust \cite{rust}, which is designed to be memory safe, not permitting null or dangling pointers and placing ownership of memory as a central tenant of the language.
+For example, Rust \cite{rust}, a systems programming language which is designed to be memory safe, not permitting null or dangling pointers and placing ownership of memory as a central tenant of the language.
 
 \section{Systems requiring library recompilation}
 
-The next step towards greater compatibility are systems that require the included libraries used by the program to be recompiled.
+The next step towards greater compatibility is systems that require the included libraries used by the program to be recompiled.
 The library recompilation allows such systems to annotate or instrument the libraries, and deal intelligently with pointers returned from and sent to them.
 
 CCured \cite{necula2002ccured} is primarily an analysis that annotates pointers with one of three types: \verb!SAFE! pointers which are only ever assigned to and dereferenced; \verb!SEQ! pointers that have pointer arithmetic performed on them and \verb!DYN! pointers which may have anything done to them including being cast from an integer.
@@ -32,15 +32,15 @@ It is suggested in the paper that Hardbound could be combined with CCured, where
 The Intel Memory Protection Extensions \cite{mpx,intelMpxSpec} are a set of extensions to the x86 instruction set designed to check pointer references that may be exploited for security exploits.
 They require compiler, runtime library and operating system support.
 
-The CHERI system \cite{cheri}, uses a specialized FPGA to track capabilities which are unforgeable pointers that grant access to a linear range of address space.
-The project uses program knowledge to combine these capabilities with C pointers - the capabilities contain base and length information to that can be used to determine if a pointer is in bounds and uses hardware to perform bounds checks on memory access.
+The CHERI system \cite{cheri}, uses a processor with specialized hardware to track capabilities which are unforgeable pointers that grant access to a linear range of address space.
+The CHERI C compiler uses program knowledge to combine these capabilities with C pointers - the capabilities contain base and length information to that can be used to determine if a pointer is in bounds and uses hardware to perform bounds checks on memory access.
 
 \textit{Efficient Detection of all pointer and array access errors} \cite{austin1994efficient} uses a more complex fat pointer representation than just \{value, base, bound\} to extend their coverage beyond just spatial safety to include temporal safety.
 
 The first additional field is the storage class enumeration, ranging over the values of Heap, Global and Local.
 This allows detection of erroneous deallocations (such as attempting to free a local variable).
-The second field, a capability is more interesting.
-On memory allocation, a unique capability is created and stored in a capability table.
+The second field, a capability is more interesting - in this work, a capability is a unique number.
+On memory allocation, a unique capability is created and stored in a capability table with information about the valid area of memory.
 The capability is deallocated once the memory is freed (either through free or returning from a function).
 The presence of the capability referenced by a fat pointer is checked on pointer dereference.
 This was found to produce an overhead of between 130-450\%.
@@ -50,18 +50,17 @@ This was found to produce an overhead of between 130-450\%.
 The Jones and Kelly bounds checker \cite{jones1997backwards} uses a table based approach, keeping a list of all objects in memory by tracking the uses of \verb!malloc! and \verb!free!.
 This system holds a unique place in the compatibility to completeness scale, since it works with all programs written in standard compliant C, however an element of its transformation can break a non-standard but commonly used practice.
 
-In standard C, pointers cannot point to an invalid memory address - they may only point to allocated memory addresses or one past the end of an array.
+In standard C, pointers cannot point to an invalid memory address - they may only point to allocated memory addresses or one past the end of an array (this has the unfortunate implication that the validity of the result from pointer arithmetic depends on execution order).
 However, most implementations allow pointers to do this, and to maintain their (invalid) value, which may then be transformed to be valid again.
 For example, the Ghostscript implementation of stacks uses pointers to the \verb!-1! element of an array.
-The Jones and Kelly system however irrevocably invalidates such pointers.
-Therefore, the Jones and Kelly bound checker requires the program to be rewritten if it does not adhere to the C standard.
+The Jones and Kelly system however irrevocably invalidates such pointers, and therefore requires the program to be rewritten if it does not adhere to the C standard.
 
 In \textit{A Practical Dynamic Buffer Overflow Detector} \cite{ruwase2004practical} it was found that 60\% of programs tested did not adhere to the C-standard assumed in the Jones and Kelly approach and were therefore broken by the tactic of signifying illegal pointers by setting them to \verb!-2!.
 
-To combat this, they created a new approach, where the creation of an out of bounds pointer would result in the creation of an Out Of Bounds object created on the heap which contains the address of the pointer and the referent object originally pointed to.
-These Out Of Bounds objects are stored in a hash table.
-Therefore on dereference, both the object list and the out of bounds hash table may be consulted to determine the validity of the pointer.
-In order to reduce the overhead from these two lookups, only strings are bounds checked on the rationale that they are the tool used in buffer overflow attacks.
+To combat this, they created a new approach, where the creation of an out of bounds pointer would result in the creation of an Out-Of-Bounds object created on the heap which contains the address of the pointer and the referent object originally pointed to.
+These Out-Of-Bounds objects are stored in a hash table.
+On dereference, both the object list and the out of bounds hash table may be consulted to determine the validity of the pointer.
+To reduce the overhead from these two lookups, only strings are bounds checked on the rationale that they are the tool used in buffer overflow attacks.
 
 \textit{Baggy Bounds Checking} \cite{akritidis2009baggy} is an alternate optimization of the Jones and Kelly system, based on reducing the lookup time.
 On a memory allocation, the size of the object is padded to the next power of two, enabling the size of the allocated memory to be stored more compactly as $lg_2(\mbox{size})$ taking the size of a single byte.
@@ -74,8 +73,8 @@ However it prevents dangerous overflows, since a pointer cannot access memory of
 
 LLVM's address sanitizer \cite{llvmAddrSan, llvmAddrSanAlgo} can be considered state of the art and  is capable of detecting out-of-bounds accesses on the heap, stack and for globals, use-after-free, and some use-after return bugs.
 
-It does this by creating a copy of memory, called shadow memory, where 1 byte of shadow memory maps to 8 bytes of real memory.
-This takes advantage of the fact that \verb!malloc! is guaranteed to return an 8-byte aligned segment of memory, therefore a value of 0 in shadow memory means the corresponding main memory is valid, a negative value means the corresponding main memory is invalid and a positive value of $n$ means the first $n$ bytes are valid and the rest are invalid.
+It does this by creating a copy of the address space, called shadow memory, where 1 byte of shadow memory maps to 8 bytes of real memory.
+This takes advantage of the fact that \verb!malloc! is guaranteed to return an 8-byte aligned segment of memory (16-byte aligned in 64-bit systems), therefore a value of 0 in shadow memory means the corresponding main memory is valid, a negative value means the corresponding main memory is invalid and a positive value of $n$ means the first $n$ bytes are valid and the rest are invalid.
 
 The \verb!malloc! and \verb!free! functions are modified so as to mark the shadowed areas of memory as valid and poisoned respectively.
 Additionally, \verb!malloc! is modified so that the memory surrounding that allocated to the program is poisoned to prevent overflows.
@@ -89,6 +88,7 @@ Additionally the paper contains a proof that spatial integrity is provided by ch
 
 \section{Systems requiring no recompilation}
 
+Finally, systems exist that require no recompilation of the source code and therefore provide the greatest level of compatibility.
 
 \textit{Heapmon} \cite{shetty2005heapmon} deploys a helper thread that stores two bits for every word on the heap to keep track of whether or not the area is allocated and whether or not the area is initialized.
 Memory leaks are therefore detected by looking for areas of allocated memory left over after the program exits.
@@ -98,7 +98,7 @@ Heapmon can only deal with memory on the heap (not the stack or globals) and wor
 
 \textit{Body Armour for Binaries} \cite{slowinska2012body} targets a very specific type of attack - buffer overflows into non-control data, without requiring the source code or symbol table of the program.
 It essentially does this by reverse engineering the binary to extract information about the data structures that need protecting and rewriting it to contain checks on pointer dereference.
-
+Though this system isn't directly to do with pointer safety, it is worth mentioning because its reverse engineering approach.
 
 
 \section{Systems implemented in this dissertation}
@@ -107,13 +107,13 @@ The fat pointer transformation implemented as part of Bandage is not a straight 
 The lookup table approach was more directly inspired by Softbound, using its lookup table structure (though with interchangeable implementations) and optimizations for dealing with local pointers.
 Both of these transformations were designed with compatibility in mind, requiring a change only in the code for the program, not its libraries.
 
-\section{Design Space}
-
-
-A summary of the design space is presented in Figure \ref{fig:Spectrum}.
-At the very bottom end of completeness is the untransformed C language, which offers the highest compatibility but no pointer safety guarantees.
-Offering the next step up in completeness are systems such as Heapmon and Body Armour for binaries which provide some protection without the need to recompile anything..
-
-The completeness of a system is further increased by giving the system access to the programs source code and the ability to automatically instrument it, giving the myriad of tools forming the central region of the spectrum.
-As the system becomes more integrated with the developer's toolchain, completeness increases, but the libraries need to be recompiled to work.
-Finally, with Cyclone, the programmer assists the system in providing the most complete protection.
+%\section{Design Space}
+%
+%
+%A summary of the design space is presented in Figure \ref{fig:Spectrum}.
+%At the very bottom end of completeness is the untransformed C language, which offers the highest compatibility but no pointer safety guarantees.
+%Offering the next step up in completeness are systems such as Heapmon and Body Armour for binaries which provide some protection without the need to recompile anything..
+%
+%The completeness of a system is further increased by giving the system access to the programs source code and the ability to automatically instrument it, giving the myriad of tools forming the central region of the spectrum.
+%As the system becomes more integrated with the developer's toolchain, completeness increases, but the libraries need to be recompiled to work.
+%Finally, with Cyclone, the programmer assists the system in providing the most complete protection.
