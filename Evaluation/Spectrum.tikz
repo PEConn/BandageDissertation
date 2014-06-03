@@ -50,6 +50,10 @@
         x       y       label       alignment
         1       0.1       C           -40
         0.2     0.8     Cyclone     -40
+        0.7     0.65     {Bandage (FP)}    180
+        0.7     0.7     {Bandage (LT)}     180
+        0.4     0.75    {Bandage (LT)}     180
+        0.4     0.7     {Bandage (FP)}      180
         0.4     0.8     CCured      0
         0.7     0.6     SoftBound   -180
         0.4     0.6     HardBound   0
@@ -64,6 +68,6 @@
     };
 \end{axis}
 \end{tikzpicture}
-\caption{The completeness vs compatibility tradeoff in pointer-safety systems.}
-\label{fig:Spectrum}
+\caption{The completeness vs compatibility tradeoff in pointer-safety systems, including Bandage.}
+\label{fig:Spectrum2}
 \end{figure}

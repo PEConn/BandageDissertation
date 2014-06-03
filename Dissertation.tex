@@ -50,9 +50,9 @@
 {\Huge \bf Abstract}
 \vspace{24pt} 
 
-C is one of the most widely used languages, favoured for its low cost abstractions and the control it gives programmers over memory.
+C is one of the most widely used languages, favoured for its low-cost abstractions and the control it gives programmers over memory.
 This control frequently leads to bugs, especially while using pointers, causing unpredictable errors and security vulnerabilities.
-Therefore much research has been done to providing pointer safety to C programs, however current work suffers from systematic flaws.
+Much research has been done to providing pointer safety to C programs; however current work suffers from systematic flaws.
 The analysis performed by such systems is inextricably linked to the transformation required to provide pointer safety.
 %Second, they are studied in isolation and not in combination with commonly used compiler optimizations or as part of a widespread compiler tool chain.
 Additionally, the majority of these approaches sacrifice binary compatibility, requiring the entire libraries a program uses to be recompiled as well or even the program to be rewritten.
@@ -63,8 +63,8 @@ I then provide methods for maintaining very high binary compatibility with progr
 %I investigate the effects of these two prevailing methods of ensuring pointer safety on commonly used optimizations passes.
 
 Additionally, I create a taxonomy for classifying and evaluating current methods for providing pointer safety.
-It goes beyond the currently quantitative measure of performance overhead imposed by a pointer safety system and includes qualitative measures such as the types of safety provided, completeness and compatibility.
-Finally an argument is made that such techniques fall on a scale between providing 100\% safety and 100\% compatibility and places current work on that spectrum, highlighting the trade-offs between the two criteria to aid future system design.
+The taxonomy goes beyond the currently quantitative measure of performance overhead imposed by a pointer safety system and includes qualitative measures such as the types of safety provided, completeness and compatibility.
+Finally I argue that such techniques fall in a trade-off space between complete compatibility and complete safety and place current work on that spectrum, highlighting the trade-offs between the two criteria to aid future system design.
 
 \newpage
 \vspace*{\fill}
@@ -84,15 +84,16 @@ Finally an argument is made that such techniques fall on a scale between providi
 \pagenumbering{arabic} 
 \setcounter{page}{1} 
 
-Pointer errors account for many bugs in C, ranging from simple off-by-one errors where the programmer writes one past the end of the array to malicious buffer overflow attacks, where an attacker inputs data designed to manipulate the code into writing past the end of the array and over some other important data.
-C allows many practices that make such errors easy to make, for example a pointer can legally point one past the end of an array (although dereferencing it is undefined).
-A pointer frequently starts pointing to its valid area of memory and then is modified (through pointer arithmetic) to point to an invalid area of memory.
-This pointer is modified again, bringing it back to point to the valid area and used though used in practice, this is not allowed in the standard.
-For example, Ghostscript, an open source PostScript implementation violates the standard by issuing pointers to the \verb!-1! element of stacks \cite{ghostscript}.
+Pointer errors account for many bugs in C, ranging from simple off-by-one errors where the programmer writes one past the end of the array to buffer overflow vulnerabilities, where an attacker inputs data designed to manipulate the code into writing past the end of the array and over some other important data.
+C allows many practices that make such errors easy. 
+For example a pointer can legally point one past the end of an array (although dereferencing it is undefined).
+A pointer frequently starts pointing to a valid area of memory and is then modified (through pointer arithmetic) to point to an invalid area of memory.
+This pointer is modified again, bringing it back to point to the valid area and, though used in practice, this is not allowed in the standard.
+For example, Ghostscript, an open source PostScript implementation violates the standard by issuing pointers to element \verb!-1! of stacks \cite{ghostscript}.
 
-One method of dealing with such bugs is to keep track of data about the valid area of memory that a pointer has access to, and consult this data on pointer dereference.
+One method of dealing with such bugs is to keep track of data about the valid area of memory that a pointer has access to and consult this data on pointer dereference.
 In this dissertation, the data used to determine the validity of a pointer is the address of the start of the area of allocated memory (the base) and the address one past its end (the bound).
-Furthermore, the base and bound data must be associated with the pointer in some way.
+The base and bound data must be associated with the pointer in some way.
 
 \begin{figure}
 \centering
@@ -126,32 +127,31 @@ text width=5em, text centered, rounded corners, minimum height=2em]
 \label{fig:Components}
 \end{figure}
 
-I implemented the Bandage system, consisting of the multiple parts shown in Figure \ref{fig:Components}.
-Implemented for the purposes of this dissertation was the Bandage system, consisting of multiple parts as shown in Figure \ref{fig:Components}.
-Bandage contains one LLVM analysis pass, two LLVM transformation passes and two C libraries.
+I implemented the \textit{Bandage system}, consisting of the parts shown in Figure \ref{fig:Components}.
+Bandage contains one analysis pass, two transformation passes and two C libraries.
 
-The pointer analysis pass uses a CCured-inspired analysis to identify the many pointers not modified using pointer arithmetic during the life of the program.
-The two transformation LLVM passes implement different methods of associating data about pointers with the pointers themselves.
-With fat pointers, pointers themselves are replaced by structures that contain the pointer value and their bounds information.
-With a lookup table approach, the address of the pointer is used as the key to a lookup table containing the bounds information.
+The pointer analysis pass identifies the many pointers not modified using pointer arithmetic during the life of the program.
+The two transformation passes implement different methods of associating data about pointers with the pointers themselves.
+With fat pointers, pointers are replaced by structures that contain the pointer value and their bounds information.
+With a lookup table approach, the address of the pointer is used as the key in a lookup table containing the bounds information.
 Finally, the two C libraries contain different implementations of the lookup table.
 
 By differentiating the pointer analysis pass from the transformation pass, it can be combined with different transformations to achieve different trade-offs in terms of safety, runtime and binary compatibility, allowing a much larger range of potential solutions to a specific need.
-Additionally, it allow support for further backends that were not considered during its design, such as MPX or CHERI.
+Additionally, it allows support for further backends that were not considered during its design, such as MPX \cite{mpx} or CHERI \cite{cheri}.
 
-The entire Bandage system is designed to provide high binary compatibility by drawing a boundary around the source files it can transform and ensuring that the instrumentation is stripped when it passes through this boundary.
+The Bandage system is designed to provide high binary compatibility by drawing a boundary around the source files it can transform and ensuring that the instrumentation is stripped when it passes through this boundary.
 This allows programs using Bandage to also use libraries that haven't been modified, but also restricts the safety completeness it can offer, as pointers that come in through this boundary do not contain sufficient information for full safety.
-This is in contrast to work such as CCured which requires a full recompilation of all included libraries.
+This is in contrast to work such as CCured \cite{necula2002ccured} that requires a full recompilation of all included libraries.
 
-Finally, Bandage will be used as the primary example in the classification of pointer-safety systems, providing a reference point to compare other systems with and a in depth study to highlight some subtleties in the taxonomy.
+Finally, Bandage will be used in the classification of pointer-safety systems, providing a reference point to compare other systems with and a in depth study to highlight some subtleties in the taxonomy.
 
 \section{Outline}
 
 This dissertation proceeds as follows, with a brief coverage of the background information required: the types of pointer safety, examples of vulnerabilities caused by lack of it and an overview of how pointers are dealt with in LLVM IR.
 A related work section follows, enumerating previous efforts to provide pointer safety, drawing together common themes between them and highlighting the position of this work.
 
-The design and implementation section contains details of the two transformation passes (the fat pointer and the metadata) and the one analysis pass (the CCured-like analysis).
-The evaluation section covers the framework for evaluating future pointer-safety systems, the runtime penalties, tested on handcrafted microbenchmarks and the olden benchmark suite and the compilation overhead incurred by the analysis and transformations.
+The design and implementation section contains details of the two transformation passes (the fat pointer and the metadata) and the one analysis pass.
+The evaluation section covers the framework for evaluating future pointer-safety systems, the runtime penalties, tested on handcrafted microbenchmarks and the Olden benchmark suite and the compilation overhead incurred by the analysis and transformations.
 
 \chapter{Background} 
 \input{Background/Background}
@@ -169,7 +169,7 @@ The evaluation section covers the framework for evaluating future pointer-safety
 
 I developed the novel idea of separation of analysis and implementation and implemented a system demonstrating it, paving the way for a reusable ecosystem of components to enforce pointer safety and to identify where it needs to be enforced.
 
-I implemented the two prevalent methods of carrying spatial pointer information and tracking pointer safety which incurred overheads comparable to that of leading research, and a pointer analysis designed to identify pointers that don't need bounds checking.
+I implemented the two prevalent methods of carrying spatial pointer information and tracking pointer safety that incurred overheads comparable to that of leading research, and a pointer analysis designed to identify pointers that don't need bounds checking.
 Due to their modular nature, the transformations and analysis developed can be used in future work.
 
 By placing the existing pointer safety systems in a common evaluation framework they can be compared and contrasted, allowing the users to make a choice of which system to use or allowing researchers to identify gaps in the design space for future work.
@@ -178,13 +178,17 @@ This evaluation also identified a core trade-off in this area, that of compatibi
 \section{Future Work}
 
 A potential direction for future work would be to extend the Bandage system to work with C++ or Objective-C, as both can be compiled to LLVM IR but created more complicated code structures.
-Further analysis passes could be implemented, for example a Cyclone inspired \textit{Not Null} analysis that detects if there is a manual null check in the code and prevents the transformations from inserting their own null checks.
+Further analysis passes could be implemented, for example a Cyclone inspired \textit{Not Null} analysis that detects if the pointer can be proven to be not null at that point in the code and prevents the transformations from inserting their own null checks.
 Alternatively, a transformation pass using a poison based approach that tracks valid memory areas but doesn't associate them with pointers could be developed and could use the pointer analysis.
 
 \appendix
 \singlespacing
 
+\urlstyle{footnote}
 \bibliographystyle{plain} 
+\begingroup
+\raggedright
 \bibliography{Bibliography} 
+\endgroup
 
 \end{document}

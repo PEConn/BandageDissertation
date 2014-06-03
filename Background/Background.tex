@@ -4,10 +4,9 @@ One of the primary advantages of C is that it gives the programmer a model that 
 Although this is very powerful, it can also be very dangerous and numerous bugs have arisen from programmers not putting careful checks on their memory operations.
 These bugs can lead to corrupted data, or potentially a security vulnerability.
 
-\subsection{Example: Buffer Overflow Attack}
+\subsection{Example: Buffer Overflow Vulnerability}
 
-This first example displays a pointer checking bug that a malicious user can turn into a security vulnerability, by allowing user input to overwrite a variable it should not be able to \cite{bufferOverflow}.
-In a buffer overflow attack, the attacker makes use of the memory layout of the program to overwrite a variable that they should not have access to \cite{bufferOverflow}.
+This first example displays a pointer checking bug that a malicious user can exploit, by allowing user input to overwrite a variable it should not be able to \cite{one1996smashing}.
 
 \begin{minted}[fontsize=\footnotesize,frame=single]{c}
 #include <stdio.h>
@@ -63,20 +62,19 @@ The problem here is that there is no bounds checking performed on \verb!s!.
 
 The attack occurs as follows:
 
-\begin{itemize}
+\begin{enumerate}
 \item The attacker provides a password that is longer than 16 characters.
 \item \verb!gets! is called, with \verb!pass! being passed in as the argument.
-\item The for loop continues until a newline in countered, in this case continuing to write past the memory allocated for \verb!pass!.
+\item The \verb!for! loop continues until a newline in countered, in this case continuing to write past the memory allocated for \verb!pass!.
 \item \verb!userid! is positioned in memory after the end of \verb!pass!, so when \verb!gets! writes past the end of \verb!pass!, it overwrites the value of \verb!userid!.
-\item \verb!userid!, which was originally set to zero, and assumed by the programmer to be unchanged unless the password and username match, has been checked to a non-zero value.
-\item The attacker is given a valid \verb!userid!, and can even set the userid to be whatever they want to be by varying the 17th character of the input password.
-\end{itemize}
+\item \verb!userid!, is originally set to zero, and assumed by the programmer to be unchanged unless the password and username match, has been checked to a non-zero value.
+\item The attacker is given a valid \verb!userid!, and can even set the userid to be whatever they want by varying the 17th character of the input password.
+\end{enumerate}
 
 \subsection{Example: Heartbleed}
 
 A more topical example is the Heartbleed vulnerability found in the OpenSSL library - an open source implementation of the SSL and TLS protocols \cite{heartbleedBlog}.
-The vulnerability, found in April 2014 is the opposite of a buffer overflow.
-Where, in a buffer overflow the attacker can write past the allocated memory to overwrite other values, the heartbleed bug allows the attacker to read past the memory allocated for the legitimate information and read values stored in RAM (such as passwords and private keys).
+Where, in a previous example the attacker can write past the allocated memory to overwrite other values, the Heartbleed bug allows the attacker to read past the memory allocated for the legitimate information and read values stored in RAM (such as passwords and private keys).
 
 The bug is contained in the following code \cite{sslSrc}:
 
@@ -99,14 +97,14 @@ memcpy(bp, pl, payload);
 \end{minted}
 
 The variable \verb!p! points to a \verb!ssl3_record_st!, the incoming message.
-The first byte of the message is read (the type of the record) and is stored in \verb!bhtype!, and then the \verb!n2s! macro takes two bytes from \verb!p! and stores them in the variable \verb!payload!, which is designed to contain the length of the message.
+The first byte of the message is read (the type of the record) and is stored in \verb!bhtype!, and then the \verb!n2s! macro takes two bytes from \verb!p! and stores them in the variable \verb!payload!, that is designed to contain the length of the message.
 Finally, \verb!pl! is set to contain the rest of the received message.
 Note that the received message is received from a potentially untrusted source.
 
 A buffer is created and has \verb!1 + 2 + payload + padding! allocated for it.
 
 The response message is created in \verb!bp! and its first byte (its record type) being set to \verb!TLS1_HB_RESPONSE!, and with the macro \verb!s2n! copying two bytes from \verb!payload! into \verb!bp!.
-Finally, \verb!memcpy! is called, which copies \verb!payload! bytes of \verb!pl! into \verb!bp!.
+Finally, \verb!memcpy! is called, that copies \verb!payload! bytes of \verb!pl! into \verb!bp!.
 This was originally intended to copy the rest of the heartbeat message back into the response but is the line that introduces the vulnerability.
 
 The bug comes into play when the variable \verb!payload!, originally extracted from the adversary originating message specifies a size bigger than the rest of the package.
@@ -115,7 +113,7 @@ Finally \verb!bp! is sent back to the adversary.
 
 
 \subsection{Example: Returning a Pointer to the Stack}
-This final example shows a nasty bug, one that potentially could be used for a security vulnerability, but since the code normally does not function correctly it hasn't been a major exploit \cite{returnLocal}.
+This final example shows a nasty bug, one that potentially could be used for a security vulnerability, but because the code normally does not function correctly it hasn't been a major exploit \cite{returnLocal}.
 This bug stems from the programmers misunderstanding of the lifetime of variables on the stack.
 
 \begin{minted}[fontsize=\footnotesize,frame=single]{c}
@@ -159,10 +157,10 @@ Therefore the techniques implemented in this dissertation do not provide complet
 
 \section{Allowances in the C standard}
 
-The C99 standard defines loose rules for pointer related operations, which allow the transformations performed by Bandage to result in a program that adhers to it \cite{c99all}.
+The C99 standard defines loose rules for pointer related operations, that allow the transformations performed by Bandage to result in a program that adhers to it \cite{c99all}.
 
 By omission in section \verb!6.2.6.1! of the standard, the representation of the pointer type in unspecified.
-This allows pointers to be represented by more informative data structures that just the address they point to, for example a fat pointer representation.
+This allows pointers to be represented by more informative data structures than just the address they point to, for example a fat pointer representation.
 
 The C standard places the following notable restrictions on pointer types (unless otherwise stated, these are contained in section \verb!6.3.2.3!).
 
@@ -183,7 +181,6 @@ However, it also provides a number of allowances that pointer safety schemes can
 \begin{itemize}
 \item The value of a pointer becomes indeterminate when the object it points to (or just past) reaches the end of its lifetime (\verb!6.2.4.2!).
 \item When an expression that has integer type is added to or subtracted from a pointer, the result has the type of the pointer operand.
-...
 If both the pointer operand and the result point to elements of the same array object, or one past the last element of the array object, the evaluation shall not produce an overflow; otherwise, the behavior is undefined.
 If the result points one past the last element of the array object, it shall not be used as the operand of a unary \verb!*! operator that is evaluated. (\verb!6.5.6!)
 \item If an invalid value has been assigned to a pointer, the behaviour of the \verb!*! pointer is undefined.
@@ -201,7 +198,7 @@ Bandage is conservative and only causes undefined behaviour for dereferences to 
 During this chapter, types will be referred to in LLVM notation.
 An \verb!i32! stands for a 32-bit integer, a \verb!i8! stands for an 8 bit integer (or char) and a pointer to a type is denoted by the type followed by an asterisk.
 
-In LLVM IR, space on the stack is set aside with the \verb!alloca! instruction, which returns a pointer to the allocated memory \ref{llvmLangRef}.
+In LLVM IR, space on the stack is set aside with the \verb!alloca! instruction, that returns a pointer to the allocated memory \cite{llvmLangRef}.
 Therefore the line \verb!int a! in C is converted into \verb!%a = alloca i32! in LLVM IR.
 It should be noted that the variable \verb!%a! is actually the type of \verb!i32*!.
 This means that in the declaration \verb!int *a! will create in LLVM IR the variable \verb!%a! of type \verb!i32**!.
@@ -258,7 +255,7 @@ The value stored in the memory pointed to by \verb!%d! is loaded into \verb!%2! 
 Finally the memory pointed to by \verb!%1! is set to the value contained in \verb!%2!.
 
 The last interesting instruction for working with pointers is the GEP instruction.
-GEP stands for 'Get Element Pointer', and is used for performing pointer arithmetic (it itself does not peform and memory access) \ref{llvmGEP}.
+GEP stands for `Get Element Pointer', and is used for performing pointer arithmetic (it itself does not peform and memory access) \cite{llvmGEP}.
 
 \begin{minipage}[t]{0.3\linewidth}
 \begin{minted}[fontsize=\footnotesize,frame=single]{c}

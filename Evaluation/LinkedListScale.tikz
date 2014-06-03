@@ -63,6 +63,6 @@
 	\addlegendentry{Memtable}
   \end{axis}
 \end{tikzpicture}
-\caption{Increase in runtime following a Linked List as size increases}
+\caption{Increase in runtime following a linked list as size increases.}
 \label{fig:LinkedListScaling}
 \end{figure}

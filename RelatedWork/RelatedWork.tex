@@ -8,20 +8,20 @@ In fat pointer systems, information about valid areas of memory is carried along
 Finally, some systems use a poison based approach, where they signify areas of memory as being invalid and throw an error when an invalid area of memory is accessed.
 
 \section{Systems requiring code rewrite}
-Starting on the highly complete but poorly compatible end of the spectrum is Cyclone \cite{jim2002cyclone}, which is a separate dialect of C.
+Starting on the highly complete but poorly compatible end of the spectrum is Cyclone \cite{jim2002cyclone}, a separate dialect of C.
 Cyclone allows the programmer to write in a C-like language that is designed to prevent buffer overflows.
 It does this by imposing restrictions, such as limiting pointer arithmetic and providing extensions, such as a never-null pointer type.
-While some of these extensions are automatic, the programmer must make use of most of them explicitly which required between 0\% and 46\% of lines of code to be changed in the corpus tested.
+While some of these extensions are automatic, the programmer use of most of them explicitly requiring between 0\% and 46\% of lines of code to be changed in the corpus tested.
 
 Arguably other languages can be included in at this end of the spectrum. 
-For example, Rust \cite{rust}, a systems programming language which is designed to be memory safe, not permitting null or dangling pointers and placing ownership of memory as a central tenant of the language.
+For example, Rust \cite{rust}, a systems programming language designed to be memory safe, not permitting null or dangling pointers and placing ownership of memory as a central tenant of the language.
 
 \section{Systems requiring library recompilation}
 
 The next step towards greater compatibility is systems that require the included libraries used by the program to be recompiled.
 The library recompilation allows such systems to annotate or instrument the libraries, and deal intelligently with pointers returned from and sent to them.
 
-CCured \cite{necula2002ccured} is primarily an analysis that annotates pointers with one of three types: \verb!SAFE! pointers which are only ever assigned to and dereferenced; \verb!SEQ! pointers that have pointer arithmetic performed on them and \verb!DYN! pointers which may have anything done to them including being cast from an integer.
+CCured \cite{necula2002ccured} is primarily an analysis that annotates pointers with one of three types: \verb!SAFE! pointers that are only ever assigned to and dereferenced; \verb!SEQ! pointers that have pointer arithmetic performed on them and \verb!DYN! pointers that may have anything done to them including being cast from an integer.
 Using this analysis, CCured can reduce the number of bounds checks that must be performed, however the analysis must be performed on the entire program, including libraries.
 Coupled tightly with this analysis is a lookup table implementation of tracking bounds.
 
@@ -32,7 +32,7 @@ It is suggested in the paper that Hardbound could be combined with CCured, where
 The Intel Memory Protection Extensions \cite{mpx,intelMpxSpec} are a set of extensions to the x86 instruction set designed to check pointer references that may be exploited for security exploits.
 They require compiler, runtime library and operating system support.
 
-The CHERI system \cite{cheri}, uses a processor with specialized hardware to track capabilities which are unforgeable pointers that grant access to a linear range of address space.
+The CHERI system \cite{cheri}, uses a processor with specialized hardware to track capabilities. Capabilities are unforgeable pointers that grant access to a linear range of address space.
 The CHERI C compiler uses program knowledge to combine these capabilities with C pointers - the capabilities contain base and length information to that can be used to determine if a pointer is in bounds and uses hardware to perform bounds checks on memory access.
 
 \textit{Efficient Detection of all pointer and array access errors} \cite{austin1994efficient} uses a more complex fat pointer representation than just \{value, base, bound\} to extend their coverage beyond just spatial safety to include temporal safety.
@@ -48,16 +48,16 @@ This was found to produce an overhead of between 130-450\%.
 \section{Systems requiring program recompilation}
 
 The Jones and Kelly bounds checker \cite{jones1997backwards} uses a table based approach, keeping a list of all objects in memory by tracking the uses of \verb!malloc! and \verb!free!.
-This system holds a unique place in the compatibility to completeness scale, since it works with all programs written in standard compliant C, however an element of its transformation can break a non-standard but commonly used practice.
+This system holds a unique place in the compatibility to completeness scale, because it works with all programs written in standard compliant C, however an element of its transformation can break a non-standard but commonly used practice.
 
 In standard C, pointers cannot point to an invalid memory address - they may only point to allocated memory addresses or one past the end of an array (this has the unfortunate implication that the validity of the result from pointer arithmetic depends on execution order).
-However, most implementations allow pointers to do this, and to maintain their (invalid) value, which may then be transformed to be valid again.
+However, most implementations allow pointers to do this, and to maintain their (invalid) value, that may then be transformed to be valid again.
 For example, the Ghostscript implementation of stacks uses pointers to the \verb!-1! element of an array.
 The Jones and Kelly system however irrevocably invalidates such pointers, and therefore requires the program to be rewritten if it does not adhere to the C standard.
 
 In \textit{A Practical Dynamic Buffer Overflow Detector} \cite{ruwase2004practical} it was found that 60\% of programs tested did not adhere to the C-standard assumed in the Jones and Kelly approach and were therefore broken by the tactic of signifying illegal pointers by setting them to \verb!-2!.
 
-To combat this, they created a new approach, where the creation of an out of bounds pointer would result in the creation of an Out-Of-Bounds object created on the heap which contains the address of the pointer and the referent object originally pointed to.
+To combat this, they created a new approach, where the creation of an out of bounds pointer would result in the creation of an Out-Of-Bounds object created on the heap containing the address of the pointer and the referent object originally pointed to.
 These Out-Of-Bounds objects are stored in a hash table.
 On dereference, both the object list and the out of bounds hash table may be consulted to determine the validity of the pointer.
 To reduce the overhead from these two lookups, only strings are bounds checked on the rationale that they are the tool used in buffer overflow attacks.
@@ -69,7 +69,7 @@ This allows a quick and constant time address calculation to be performed.
 Alternate methods are used for dealing with pointers pointing past the end of arrays as adding one element to an array could double the size it could take up.
 
 This approach does not prevent out of bounds accesses as the size associated with the pointer (the allocated bounds) is larger than the size of the object (the object bounds), so it is still possible to exceed the bounds of the object.
-However it prevents dangerous overflows, since a pointer cannot access memory of an object that it was not created for.
+However it prevents dangerous overflows, because a pointer cannot access memory of an object that it was not created for.
 
 LLVM's address sanitizer \cite{llvmAddrSan, llvmAddrSanAlgo} can be considered state of the art and  is capable of detecting out-of-bounds accesses on the heap, stack and for globals, use-after-free, and some use-after return bugs.
 

@@ -14,7 +14,7 @@ I then benchmarked the transformations themselves to show it runs in a reasonabl
 %To investigate the interactions with optimization passes, I performed further benchmarks in the presence of LLVM's O1 optimizations.
 Finally, to show the security benefit that can be gained from the additional robustness to pointer-based errors that Bandage can provide, I reiterate through the examples from the Background section, commenting on Bandage's successes and short-falls.
 
-\section{Pointer Safety System Evaluation Framework}
+\section{Pointer-Safety System Evaluation Framework}
 
 The following factors are taken into account when assessing a pointer safety system:
 
@@ -27,7 +27,7 @@ Some systems, such as Baggy Bounds checking fail to fulfill this criterion becau
 The Heapmon and Address Sanitizer systems fail to meet this criterion because they only track valid and invalid memory, and do not map between pointers and the memory that is valid for that pointer.
 Address Sanitizer does use techniques to make the likelihood of this happening very small (by adding poisoned areas around objects).
 
-\paragraph{Checking all variables} can be achieved through one of two methods, either by whole program analysis which lowers compatibility or by tracking calls to malloc and free in the compiled binary.
+\paragraph{Checking all variables} can be achieved through one of two methods, either by whole program analysis that lowers compatibility or by tracking calls to malloc and free in the compiled binary.
 The HardBound, SoftBound and Bandage systems fail to provide this because they do not require recompilation of included libraries, and therefore do not have bounds information for pointers from them, unless the entire program is recompiled.
 Baggy Bounds checking only checks the bounds of strings as an optimization strategy.
 
@@ -50,7 +50,7 @@ Body Armor for Binaries gets around this reverse engineering the program file to
 \paragraph{Whole Program Recompilation} requires the program and all of its included libraries to be compiled with the system.
 This is linked with the \textbf{Checking all variables} criteria as a key trade-off between completeness and compatibility, especially with systems that can be run without whole program recompilation, but provide far less security when they do so.
 
-\paragraph{Non-conforming Code Rewrite} is required by the Jones and Kelly system which overwrites the results of pointer arithmetic that exceeds the referent to the constant \verb!-2!.
+\paragraph{Non-conforming Code Rewrite} is required by the Jones and Kelly system that overwrites the results of pointer arithmetic that exceeds the referent to the constant \verb!-2!.
 This would be a valid transformation for programs that adhered strictly to the C standard, but it was found that 60\% of programs tested relied on undefined behaviour, that this broke \cite{ruwase2004practical}.
 
 \paragraph{Code Rewrite} is the poorest level of compatibility as all programs will require some form of modification to get the system to work with them.
@@ -58,20 +58,20 @@ Cyclone requires this, due to it being a dialect of C and not a system to be run
 
 \begin{table}
 \centering
-\begin{tabular}{l|cccccccccc}
-Safety Guarantee & \rot{Bandage} & \rot{CCured} & \rot{SoftBound} & \rot{HardBound} & \rot{Jones \& Kelly} & \rot{Cyclone} & \rot{Heapmon} & \rot{Address San.} & \rot{Baggy Bounds} & \rot{MPX} \\
+\begin{tabular}{l|ccccccccccc}
+Safety Guarantee & \rot{Bandage (FP)} & \rot{Bandage (LT)} & \rot{CCured} & \rot{SoftBound} & \rot{HardBound} & \rot{Jones \& Kelly} & \rot{Cyclone} & \rot{Heapmon} & \rot{Address San.} & \rot{Baggy Bounds} & \rot{MPX} \\
 \hline
-Invalid Memory Accesses        &&&&&&&\xmark&&\xmark& \\
-Incorrect Object Accesses      &&&&&&&\xmark&\xmark&&\xmark\\
-Checks All Variables            &\xmark&&\xmark&\xmark&\xmark&&&&\xmark&\xmark\\
+Invalid Memory Accesses        &&&&&&&&\xmark&&\xmark& \\
+Incorrect Object Accesses      &&&&&&&&\xmark&\xmark&&\xmark\\
+Checks All Variables            &\xmark&\xmark&&\xmark&\xmark&\xmark&&&&\xmark&\xmark\\
 \hline
-Use-After-Free Accesses         &*&\xmark&\xmark&\xmark&&&&&&\xmark\\
-Dead Stack Memory Accesses     &\xmark&\xmark&\xmark&\xmark&&&\xmark&\xmark&&\xmark\\
+Use-After-Free Accesses         &*&&\xmark&\xmark&\xmark&&&&&&\xmark\\
+Dead Stack Memory Accesses     &&\xmark&\xmark&\xmark&\xmark&&&\xmark&\xmark&&\xmark\\
 \hline
-Code Recompilation          &\xmark&\xmark&\xmark&\xmark&\xmark&\xmark&&\xmark&\xmark&\xmark\\
-Library Recompilation       &&\xmark&&\xmark&&\xmark&&&&\xmark\\
-Non-conforming Code Rewrite   &&&&&\xmark&&&&&\\
-Code Rewrite                &&&&&&\xmark&&&&\\
+Code Recompilation          &&\xmark&\xmark&\xmark&\xmark&\xmark&\xmark&&\xmark&\xmark&\xmark\\
+Library Recompilation       &&&\xmark&&\xmark&&\xmark&&&&\xmark\\
+Non-conforming Code Rewrite   &&&&&&\xmark&&&&&\\
+Code Rewrite                &&&&&&&\xmark&&&&\\
 \end{tabular}
 \caption{Safety guarantees for evaluated pointer safety systems. A cross indicates the guarantee is \textbf{not} provided.}
 \label{fig:TickTable}
@@ -82,7 +82,7 @@ The evaluated systems are marked according to the previous criteria in Table \re
 \subsection{Runtime Overhead}
 
 \paragraph{Runtime Overhead} is the current leading method for comparing pointer-safety systems, probably due to its quantitative and easy to measure nature.
-It is important, and therefore I've included it, however as can be seen in Table \ref{fig:Others}, most systems (those that do not requeri hardware assistance) perform comparably.
+It is important, and therefore I've included it, however as can be seen in Table \ref{fig:Others}, most systems (those that do not require hardware assistance) perform comparably.
 
 \subsection{Extra Requirements}
 
@@ -95,7 +95,7 @@ An additional thread running may require more resources that aren't made explici
 
 I have summarized the extra requirements and runtime overheads imposed by each tool in Table \ref{fig:Others}.
 
-Together these three graphs provide a full picture of the relative strengths and weaknesses of these tools, allowing programmers to make an informed decision over which is the best for the task at hand.
+Together these tables provide a full picture of the relative strengths and weaknesses of these tools, allowing programmers to make an informed decision over which is the best for the task at hand.
 A programmer with a non-real time legacy system could start by choosing Heapmon and accept the runtime overhead as an acceptable price for the lack of compilation time overhead.
 Alternatively a programmer looking to write a secure system from scratch would be well advised to use Cyclone (provided the garbage collector isn't an issue).
 
@@ -104,7 +104,9 @@ Alternatively a programmer looking to write a secure system from scratch would b
 \begin{tabular}{l|r|r}
 System & Runtime Overhead & Extra Requirements \\
 \hline
-Bandage             &Up to 250\%&\\
+Bandage (FP)            &Up to 100\%&\\
+Bandage (LT)            &Up to 300\%&\\
+
 CCured              &Up to 250\%&\\
 SoftBound           &Up to 350\%&\\
 HardBound           &Up to 25\%&Hardware\\
@@ -115,7 +117,7 @@ Address Sanitizer   &Typically 200\%&\\
 Baggy Bounds        &Up to 230\%&\\
 MPX                 &None Available&Hardware\\
 \end{tabular}
-\caption{Runtime and extra requirements of evaluated pointer safety systems}
+\caption{Runtime and extra requirements of evaluated pointer safety systems.}
 \label{fig:Others}
 \end{table}
 
@@ -147,10 +149,10 @@ x=*y;
 \end{minted}
 
 As \verb!y! is recognised as a safe pointer, no bounds checking will be carried out, however a null check is performed.
-This null check incurs an overhead of \verb!4.6%!.
+This null check incurs an overhead of $4.6\% \pm 0.3\%$.
 
 If there null check were omitted, the only overhead of the fat pointer approach would be the load required to retrieve the fat pointer value.
-This benchmark was run without the null check, and the load was found to incur an overhead of \verb!0.9%!.
+This benchmark was run without the null check, and the load was found to incur an overhead of $0.92\% \pm 0.11\%$.
 
 \subsubsection{Unsafe Pointer Dereference}
 
@@ -164,7 +166,7 @@ x=*y;
 \end{minted}
 
 By using array addressing on the pointer, the pointer analysis detects \verb!y! as a pointer that has arithmetic done on it, and is therefore not \textit{SAFE}.
-Therefore the pointer dereference will contain the full bounds check, which was found to incur an overhead of \verb!52%!.
+Therefore the pointer dereference will contain the full bounds check, that was found to incur an overhead of $52\% \pm 2.4\%$.
 
 The bounds check function used was complex, first it checked if the value was null, then if the base was null (signifying a pointer of type \textit{NoBounds!}, and finally if the value were within the base and bound.
 
@@ -198,7 +200,7 @@ This benchmark was created to highlight the difference between the fat pointer a
 A linked chain is created and then followed.
 These tests were repeated with a linked lists of different lengths to investigate how each approach scales with the number of pointers that it needs to keep track of.
 
-Figure \ref{fig:LinkedListScaling} shows the results.
+Figure \ref{fig:LinkedListScaling} shows the results (the errors were negligible).
 The first and most obvious result is that, now that the pointers are stored on the heap and therefore table lookups are required for pointer bounds the table lookup approaches are slower than the fat pointer approach.
 
 \input{Evaluation/LinkedListScale.tikz}
@@ -218,10 +220,28 @@ Therefore, because the MemTable uses the pointer's address in memory as the inde
 Finally, because the table lookup functions are compiled separately and linked with the code, function inlining is prevented.
 This would result in more branching.
 
+A summary of the microbenchmarks can be found in Table \ref{fig:Micros}.
+
+\begin{table}
+\centering
+\begin{tabular}{|lrr|}
+\hline  Benchmark & Fat Pointer Overhead & Lookup Table Overhead\\
+\hline
+Safe Dereference    & \text{$4.6\% \pm 0.3\%$}     & Same as Fat Pointer \\
+Unsafe Deference    & \text{$52\% \pm 2.4\%$}     & Same as Fat Pointer \\
+Allocation          & Negligible     & Same as Fat Pointer \\
+Assignment          & Negligible     & Same as Fat Pointer \\
+Linked List         & \text{$110\% \pm 7\%$}     & \text{$410\% \pm  19\%$} \\
+\hline
+\end{tabular}
+\caption{Fat pointer and lookup table overheads compared to uninstrumented runtime for the microbenchmarks.}
+\label{tab:Micros}
+\end{table}
+
 \subsection{Olden Benchmarks}
 
 The Olden suite of benchmarks are designed to benchmark pointer-heavy data structures \cite{olden}.
-Due to the complex nature of the transformation (especially the fat pointer transformation), some of the olden benchmarks are not transformed correctly, and fail to run (\verb!em3d!, \verb!health!, \verb!bh!, \verb!mst!).
+Due to the complex nature of the transformation (especially the fat pointer transformation), some of the Olden benchmarks are not transformed correctly, and fail to run (\verb!em3d!, \verb!health!, \verb!bh!, \verb!mst!).
 This is due to issues with the implementation of Bandage, and not due to limits in the system.
 
 Most of the benchmarks center around constructing binary trees (each node contains pointers to two other nodes, and a value), for example the treeadd benchmark constructs a tree and performs a depth-first search to accumulate all the values and the bisort benchmark performs a binary merge at each node to sort the tree.
@@ -241,7 +261,7 @@ Treeadd     & \text{$49\% \pm 4\%$}     & \text{$253\% \pm  6\%$} \\
 Tsp         & \text{$95\% \pm 2\%$}     & \text{$211\% \pm  3\%$} \\
 \hline
 \end{tabular}
-\caption{Fat pointer and lookup table overheads compared to uninstrumented runtime for the Olden benchmarks}
+\caption{Fat pointer and lookup table overheads compared to uninstrumented runtime for the Olden benchmarks.}
 \label{tab:OldenRuntime}
 \end{table}
 \begin{figure}
@@ -261,22 +281,46 @@ Tsp         & \text{$95\% \pm 2\%$}     & \text{$211\% \pm  3\%$} \\
         enlarge x limits=0.25,
         ymin=0,
         legend cell align=left,
+        error bars/error bar style={black},
         legend style={
                 at={(1,1.05)},
                 anchor=south east,
                 column sep=1ex
         }
     ]
-        \addplot[style={bblue,fill=bblue,mark=none}]
-            coordinates {(Bisort,171) (Perimeter,135) (Power,146) (Treeadd, 149) (Tsp, 195)};
+        \addplot[
+            fill=bblue,
+            draw=bblue,
+            error bars/.cd,
+            y dir=both,
+            y explicit]
+        table [y error=error]{
+            x           y       error
+            Bisort      171     1
+            Perimeter   135     7
+            Power       146     1
+            Treeadd     149     4
+            Tsp         195     2
+        };
 
-        \addplot[style={rred,fill=rred,mark=none}]
-            coordinates {(Bisort, 264) (Perimeter, 294) (Power, 201) (Treeadd, 253) (Tsp,311)};
-
+        \addplot[
+            fill=rred,
+            draw=rred,
+            error bars/.cd,
+            y dir=both,
+            y explicit]
+        table [y error=error]{
+            x           y       error
+            Bisort      264     1
+            Perimeter   294     11
+            Power       201     1
+            Treeadd     253     6
+            Tsp         331     3
+        };
         \legend{Fat Pointers, Lookup Table}
     \end{axis}
 \end{tikzpicture}
-\caption{Graphical representation of relative runtime for Olden benchmarks}
+\caption{Graphical representation of relative runtime for Olden benchmarks.}
 \label{fig:OldenRuntime}
 \end{figure}
 
@@ -286,7 +330,7 @@ Tsp         & \text{$95\% \pm 2\%$}     & \text{$211\% \pm  3\%$} \\
 %The treeadd benchmark constructs a binary tree where each node contains a value in addition to two children (all values are set to 1).
 %A depth-first search is then performed, accumulating the value at each node.
 %
-%The implementation of CCured-like analysis counts all member pointers as a non-SAFE type (since the actions on the pointer and therefore the CCured type will be different for each instance), meaning that the tree traversal doesn't benefit from CCured-analysis.
+%The implementation of CCured-like analysis counts all member pointers as a non-SAFE type (because the actions on the pointer and therefore the CCured type will be different for each instance), meaning that the tree traversal doesn't benefit from CCured-analysis.
 %
 %Under Bandage, the tree construction stage, dominated by memory allocations took a \verb!42%! performance hit and the tree traversal stage took a \verb!77%! performance hit.
 %
@@ -316,7 +360,7 @@ Tsp         & \text{$95\% \pm 2\%$}     & \text{$211\% \pm  3\%$} \\
 
 \subsubsection{Failing Benchmarks}
 
-Due to the complex nature of the transformation (especially the fat pointer transformation), some of the olden benchmarks are not transformed correctly.
+Due to the complex nature of the transformation (especially the fat pointer transformation), some of the Olden benchmarks are not transformed correctly.
 There is overlap with the benchmarks evaluated for the CHERI paper, with \verb!bisort!, \verb!perimeter! and \verb!treeadd! working for both CHERI and Bandage, \verb!mst! working for CHERI but not Bandage and \verb!power! and \verb!tsp! working for Bandage and not CHERI.
 
 %\subsubsection{Type Coercion}
@@ -361,24 +405,62 @@ The results, shown in Figure \ref{fig:CompTime} show that the fat pointer transf
         enlarge x limits=0.25,
         ymin=0,
         legend cell align=left,
+        error bars/error bar style={black},
         legend style={
                 at={(0.37, 0.73)},
                 anchor=south east,
                 column sep=1ex
         }
     ]
-        \addplot[style={bblue,fill=bblue,mark=none}]
-            coordinates {(Bisort,   0.4733  ) (Perimeter,   0.5551  ) (Power,   0.9405  ) (Treeadd,   0.3964  ) (Tsp,   0.7323  )};
+        \addplot[
+            fill=bblue,
+            draw=bblue,
+            error bars/.cd,
+            y dir=both,
+            y explicit]
+        table [y error=error]{
+            x           y       error
+            Bisort      0.4733     0.0562
+            Perimeter   0.5551     0.0182
+            Power       0.9405     0.0390
+            Treeadd     0.3964     0.0213
+            Tsp         0.7323     0.0192
+        };
 
-        \addplot[style={ggreen,fill=ggreen,mark=none}]
-            coordinates {(Bisort,   0.5324 ) (Perimeter,   0.5975) (Power,   1.17) (Treeadd,   0.393) (Tsp,   0.9466)};
+        \addplot[
+            fill=ggreen,
+            draw=ggreen,
+            error bars/.cd,
+            y dir=both,
+            y explicit]
+        table [y error=error]{
+            x           y       error
+            Bisort      0.5324     0.0576
+            Perimeter   0.5975     0.0279
+            Power       1.17	   0.0233
+            Treeadd     0.393      0.0201
+            Tsp         0.9466     0.0155
+        };
 
-        \addplot[style={rred,fill=rred,mark=none}]
-            coordinates {(Bisort,   0.3049  ) (Perimeter,   0.3395  ) (Power,   0.5169  ) (Treeadd,   0.2996  ) (Tsp,   0.4091  )};
+        \addplot[
+            fill=rred,
+            draw=rred,
+            error bars/.cd,
+            y dir=both,
+            y explicit]
+        table [y error=error]{
+            x           y       error
+            Bisort      0.3049     0.0284
+            Perimeter   0.3395     0.0231
+            Power       0.5169     0.0303
+            Treeadd     0.2996     0.0232
+            Tsp         0.4091     0.0244
+        };
+
         \legend{Fat Pointers, Lookup Table, Raw}
     \end{axis}
 \end{tikzpicture}
-\caption{Compilation Time for Olden Benchmarks}
+\caption{Compilation time for Olden benchmarks.}
 \label{fig:CompTime}
 \end{figure}
 
@@ -419,7 +501,7 @@ The binary sizes for both of the transformations were both quite similar, indica
         \legend{Fat Pointers, Lookup Table, Raw}
     \end{axis}
 \end{tikzpicture}
-\caption{Binary Size of Olden Benchmarks}
+\caption{Binary size of Olden benchmarks.}
 \label{fig:BinSize}
 \end{figure}
 
@@ -489,7 +571,7 @@ The binary sizes for both of the transformations were both quite similar, indica
 %The \verb!insertvalue! instruction returns a pointer to the updated struct, which is then used in further code.
 %This simplifies the dependency graph, making each subsequent field assignment dependant on the last (so \verb!%3! depends on \verb!%2! which depends on \verb!%1!) instead of all dependant on the \verb!alloca! at the top.
 %
-%Usually with this pass, the \verb!alloca! instruction at the top is removed entirely, since where originally there was an \verb!alloca!, then a call to \verb!malloc! then an assignment to the allocated variable, there is now only a call.
+%Usually with this pass, the \verb!alloca! instruction at the top is removed entirely, because where originally there was an \verb!alloca!, then a call to \verb!malloc! then an assignment to the allocated variable, there is now only a call.
 %Unfortunately, both of the Bandage transformation passes rely on the \verb!alloca! instructions at the start of each function to gather the variables, so this pass cannot be performed before the transformation.
 %The fat pointer pass transforms variables into their fat pointer versions at this point, and the lookup table pass registers them as local variables and generates their local bounds.
 %
@@ -559,11 +641,11 @@ The binary sizes for both of the transformations were both quite similar, indica
 \section{Conclusion}
 
 The Bandage system that I developed provides multiple backends for pointer bounds checking and allows the user to choose how much of their program they want to recompile.
-Therefore it creates four new points in the design space of pointer-safety systems, shown again in Figure \ref{fig:Spectrum} the two Bandage points on the left signify Bandage being used for a whole program transformation whereas the two on the right mark its use on just the program code (and not the libraries).
-The lookup table transformation provides slightly more complete safety than the fat pointer transformation, since there are C operations that can strip the bounds information from a fat pointer (for example converting a pointer to an integer and back).
-Additionally Bandage can be used as a full program analysis, which would provide bounds for pointers received from libraries.
+It creates four new points in the design space of pointer-safety systems, shown again in Figure \ref{fig:Spectrum2} the two Bandage points on the left signify Bandage being used for a whole program transformation whereas the two on the right mark its use on just the program code (and not the libraries).
+The lookup table transformation provides slightly more complete safety than the fat pointer transformation, because there are C operations that can strip the bounds information from a fat pointer (for example converting a pointer to an integer and back).
+Additionally Bandage can be used as a full program analysis, that would provide bounds for pointers received from libraries.
 
-\input{RelatedWork/Spectrum.tikz}
+\input{Evaluation/Spectrum.tikz}
 
 
 The robustness provided by the Bandage system brings with it security benefits, for example it is capable of stopping the buffer-overflow attack detailed in the Background section.
